@@ -44,7 +44,7 @@ jobs:
         run: dotnet restore Minecraftonia.sln
 
       - name: Publish
-        run: dotnet publish Minecraftonia/Minecraftonia.csproj -c Release -r ${{ matrix.rid }} --self-contained false -o publish/${{ matrix.rid }}
+        run: dotnet publish Minecraftonia/Minecraftonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish/${{ matrix.rid }}
 
       - name: Remove debug artifacts
         run: |
