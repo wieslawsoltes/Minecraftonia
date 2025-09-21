@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -46,6 +47,21 @@ public sealed class GameControl : Control
     private readonly Typeface _hudTypeface = Typeface.Default;
     private float _smoothedFps = 60f;
 
+    private bool _mouseLookEnabled;
+    private Cursor? _previousCursor;
+    private IPointer? _capturedPointer;
+    private bool _requestPointerCapture;
+    private float _pendingMouseDeltaX;
+    private float _pendingMouseDeltaY;
+    private Point? _lastPointerPosition;
+    private float _mouseSensitivity = 0.18f;
+    private bool _invertMouseX = true;
+    private bool _invertMouseY;
+
+    private readonly HashSet<PhysicalKey> _physicalKeysDown = new();
+    private readonly HashSet<PhysicalKey> _physicalKeysPressed = new();
+    private TopLevel? _topLevel;
+
     private readonly BlockType[] _palette =
     {
         BlockType.Grass,
@@ -69,10 +85,11 @@ public sealed class GameControl : Control
 
         _player = new Player
         {
-            Position = new Vector3(_world.Width / 2f, _world.WaterLevel + 8f, _world.Depth / 2f),
             Yaw = 180f,
             Pitch = -12f
         };
+
+        InitializePlayerPosition();
 
         _cameraTanHalfFov = MathF.Tan(FieldOfViewDegrees * 0.5f * MathF.PI / 180f);
 
@@ -89,6 +106,14 @@ public sealed class GameControl : Control
             _lastTicks = _stopwatch.ElapsedTicks;
             _timer.Start();
         }
+
+        _topLevel = TopLevel.GetTopLevel(this);
+        SubscribeToTopLevelInput();
+
+        if (!_mouseLookEnabled)
+        {
+            SetMouseLook(true);
+        }
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -97,6 +122,14 @@ public sealed class GameControl : Control
         if (_timer.IsEnabled)
         {
             _timer.Stop();
+        }
+
+        UnsubscribeFromTopLevelInput();
+        _topLevel = null;
+
+        if (_mouseLookEnabled)
+        {
+            SetMouseLook(false);
         }
 
         _framebuffer?.Dispose();
@@ -120,6 +153,7 @@ public sealed class GameControl : Control
 
     private void UpdateGame(float deltaTime)
     {
+        HandleToggleInput();
         HandleLook(deltaTime);
         HandleMovement(deltaTime);
         UpdateSelection();
@@ -130,6 +164,7 @@ public sealed class GameControl : Control
         _smoothedFps += (instantaneousFps - _smoothedFps) * 0.1f;
 
         _keysPressed.Clear();
+        _physicalKeysPressed.Clear();
         InvalidateVisual();
     }
 
@@ -177,6 +212,28 @@ public sealed class GameControl : Control
         {
             _player.Yaw -= 360f;
         }
+
+        if (Math.Abs(_pendingMouseDeltaX) > float.Epsilon || Math.Abs(_pendingMouseDeltaY) > float.Epsilon)
+        {
+            float yawDelta = _pendingMouseDeltaX * _mouseSensitivity;
+            float pitchDelta = _pendingMouseDeltaY * _mouseSensitivity;
+
+            _player.Yaw += _invertMouseX ? -yawDelta : yawDelta;
+            _player.Pitch += _invertMouseY ? pitchDelta : -pitchDelta;
+            _pendingMouseDeltaX = 0f;
+            _pendingMouseDeltaY = 0f;
+
+            if (_player.Yaw < 0f)
+            {
+                _player.Yaw += 360f;
+            }
+            else if (_player.Yaw >= 360f)
+            {
+                _player.Yaw -= 360f;
+            }
+
+            _player.Pitch = Math.Clamp(_player.Pitch, -85f, 85f);
+        }
     }
 
     private void HandleMovement(float deltaTime)
@@ -206,22 +263,22 @@ public sealed class GameControl : Control
 
         Vector3 wishDir = Vector3.Zero;
 
-        if (IsKeyDown(Key.W))
+        if (IsMovementKeyDown(Key.W, Key.Z, Key.Up) || IsMovementPhysicalKeyDown(PhysicalKey.W, PhysicalKey.Z))
         {
             wishDir += forwardPlane;
         }
 
-        if (IsKeyDown(Key.S))
+        if (IsMovementKeyDown(Key.S, Key.Down) || IsMovementPhysicalKeyDown(PhysicalKey.S))
         {
             wishDir -= forwardPlane;
         }
 
-        if (IsKeyDown(Key.A))
+        if (IsMovementKeyDown(Key.A, Key.Q, Key.Left) || IsMovementPhysicalKeyDown(PhysicalKey.A, PhysicalKey.Q))
         {
             wishDir -= rightPlane;
         }
 
-        if (IsKeyDown(Key.D))
+        if (IsMovementKeyDown(Key.D, Key.Right) || IsMovementPhysicalKeyDown(PhysicalKey.D))
         {
             wishDir += rightPlane;
         }
@@ -231,11 +288,16 @@ public sealed class GameControl : Control
             wishDir = Vector3.Normalize(wishDir);
         }
 
-        float moveSpeed = IsKeyDown(Key.LeftShift) ? 3.5f : 6.5f;
+        bool isShiftDown =
+            IsMovementKeyDown(Key.LeftShift, Key.RightShift) ||
+            IsMovementPhysicalKeyDown(PhysicalKey.ShiftLeft, PhysicalKey.ShiftRight);
+
+        float moveSpeed = isShiftDown ? 3.5f : 6.5f;
         Vector3 horizontalVelocity = wishDir * moveSpeed;
         _player.Velocity = new Vector3(horizontalVelocity.X, _player.Velocity.Y, horizontalVelocity.Z);
 
-        if (IsKeyPressed(Key.Space) && _player.IsOnGround)
+        bool jumpPressed = IsKeyPressed(Key.Space) || IsPhysicalKeyPressed(PhysicalKey.Space);
+        if (jumpPressed && _player.IsOnGround)
         {
             _player.Velocity = new Vector3(_player.Velocity.X, 8.2f, _player.Velocity.Z);
             _player.IsOnGround = false;
@@ -257,6 +319,107 @@ public sealed class GameControl : Control
             Math.Clamp(_player.Position.X, 1.5f, _world.Width - 1.5f),
             Math.Clamp(_player.Position.Y, minY, maxY),
             Math.Clamp(_player.Position.Z, 1.5f, _world.Depth - 1.5f));
+    }
+
+    private void InitializePlayerPosition()
+    {
+        Vector3 spawn = FindSpawnPosition();
+        _player.Position = spawn;
+        _player.Velocity = Vector3.Zero;
+        _player.IsOnGround = false;
+
+        ResolveInitialPenetration();
+    }
+
+    private Vector3 FindSpawnPosition()
+    {
+        int centerX = _world.Width / 2;
+        int centerZ = _world.Depth / 2;
+
+        Span<(int dx, int dz)> offsets = stackalloc (int dx, int dz)[]
+        {
+            (0, 0),
+            (1, 0), (-1, 0), (0, 1), (0, -1),
+            (2, 0), (-2, 0), (0, 2), (0, -2),
+            (1, 1), (-1, 1), (1, -1), (-1, -1),
+            (3, 0), (-3, 0), (0, 3), (0, -3)
+        };
+
+        foreach (var (dx, dz) in offsets)
+        {
+            int x = centerX + dx;
+            int z = centerZ + dz;
+            if (TryFindSurface(x, z, out var spawn))
+            {
+                return spawn;
+            }
+        }
+
+        // Fallback to a high safe position if no surface is found.
+        return new Vector3(centerX + 0.5f, _world.Height - 6f, centerZ + 0.5f);
+    }
+
+    private bool TryFindSurface(int x, int z, out Vector3 spawn)
+    {
+        spawn = default;
+
+        if (!_world.InBounds(x, 0, z))
+        {
+            return false;
+        }
+
+        for (int y = _world.Height - 3; y >= 1; y--)
+        {
+            var block = _world.GetBlock(x, y, z);
+            if (!block.IsSolid())
+            {
+                continue;
+            }
+
+            // Avoid spawning directly on top of water.
+            if (block == BlockType.Water)
+            {
+                continue;
+            }
+
+            int headY = y + 1;
+            int topY = y + 2;
+            if (topY >= _world.Height - 1)
+            {
+                continue;
+            }
+
+            if (_world.GetBlock(x, headY, z).IsSolid())
+            {
+                continue;
+            }
+
+            if (_world.GetBlock(x, topY, z).IsSolid())
+            {
+                continue;
+            }
+
+            spawn = new Vector3(x + 0.5f, headY + 0.02f, z + 0.5f);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ResolveInitialPenetration()
+    {
+        const int maxIterations = 12;
+        int iterations = 0;
+
+        while (Collides(_player.Position))
+        {
+            _player.Position += Vector3.UnitY * 0.5f;
+            iterations++;
+            if (iterations >= maxIterations)
+            {
+                break;
+            }
+        }
     }
 
     private bool MoveWithCollisions(ref Vector3 position, ref Vector3 velocity, float deltaTime)
@@ -842,17 +1005,13 @@ public sealed class GameControl : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (!_keysDown.Contains(e.Key))
-        {
-            _keysDown.Add(e.Key);
-            _keysPressed.Add(e.Key);
-        }
+        HandleKeyDown(e);
     }
 
     protected override void OnKeyUp(KeyEventArgs e)
     {
         base.OnKeyUp(e);
-        _keysDown.Remove(e.Key);
+        HandleKeyUp(e);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -892,6 +1051,94 @@ public sealed class GameControl : Control
 
     private bool IsKeyDown(Key key) => _keysDown.Contains(key);
     private bool IsKeyPressed(Key key) => _keysPressed.Contains(key);
+    private bool IsPhysicalKeyDown(PhysicalKey key) => _physicalKeysDown.Contains(key);
+    private bool IsPhysicalKeyPressed(PhysicalKey key) => _physicalKeysPressed.Contains(key);
+
+    private bool IsMovementKeyDown(Key primary, Key? alt1 = null, Key? alt2 = null)
+    {
+        if (primary != Key.None && IsKeyDown(primary))
+        {
+            return true;
+        }
+
+        if (alt1.HasValue && alt1.Value != Key.None && IsKeyDown(alt1.Value))
+        {
+            return true;
+        }
+
+        if (alt2.HasValue && alt2.Value != Key.None && IsKeyDown(alt2.Value))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsMovementPhysicalKeyDown(params PhysicalKey[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (key != PhysicalKey.None && IsPhysicalKeyDown(key))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void HandleKeyDown(KeyEventArgs e)
+    {
+        if (!_keysDown.Contains(e.Key))
+        {
+            _keysDown.Add(e.Key);
+            _keysPressed.Add(e.Key);
+        }
+
+        if (!_physicalKeysDown.Contains(e.PhysicalKey))
+        {
+            _physicalKeysDown.Add(e.PhysicalKey);
+            _physicalKeysPressed.Add(e.PhysicalKey);
+        }
+    }
+
+    private void HandleKeyUp(KeyEventArgs e)
+    {
+        _keysDown.Remove(e.Key);
+        _physicalKeysDown.Remove(e.PhysicalKey);
+    }
+
+    private void SubscribeToTopLevelInput()
+    {
+        if (_topLevel is null)
+        {
+            return;
+        }
+
+        _topLevel.AddHandler(InputElement.KeyDownEvent, TopLevelOnKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, true);
+        _topLevel.AddHandler(InputElement.KeyUpEvent, TopLevelOnKeyUp, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, true);
+    }
+
+    private void UnsubscribeFromTopLevelInput()
+    {
+        if (_topLevel is null)
+        {
+            return;
+        }
+
+        _topLevel.RemoveHandler(InputElement.KeyDownEvent, TopLevelOnKeyDown);
+        _topLevel.RemoveHandler(InputElement.KeyUpEvent, TopLevelOnKeyUp);
+    }
+
+    private void TopLevelOnKeyDown(object? sender, KeyEventArgs e)
+    {
+        HandleKeyDown(e);
+    }
+
+    private void TopLevelOnKeyUp(object? sender, KeyEventArgs e)
+    {
+        HandleKeyUp(e);
+    }
 
     public override void Render(DrawingContext context)
     {
@@ -904,8 +1151,44 @@ public sealed class GameControl : Control
             context.DrawImage(_framebuffer, sourceRect, destRect);
         }
 
+        DrawBlockHighlight(context);
         DrawCrosshair(context);
         DrawHud(context);
+    }
+
+    private void DrawBlockHighlight(DrawingContext context)
+    {
+        if (!_hasCurrentHit || Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        Span<Vector3> corners = stackalloc Vector3[4];
+        GetFaceCorners(_currentHit.Block, _currentHit.Face, corners);
+
+        var projected = new Point[4];
+        for (int i = 0; i < 4; i++)
+        {
+            if (!TryProject(corners[i], out var screenPoint))
+            {
+                return;
+            }
+
+            projected[i] = screenPoint;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(projected[0], true);
+            ctx.LineTo(projected[1]);
+            ctx.LineTo(projected[2]);
+            ctx.LineTo(projected[3]);
+            ctx.EndFigure(true);
+        }
+        var fill = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
+        var pen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)), Math.Max(1.5, Bounds.Width * 0.002));
+        context.DrawGeometry(fill, pen, geometry);
     }
 
     private void DrawCrosshair(DrawingContext context)
@@ -942,7 +1225,10 @@ public sealed class GameControl : Control
             "WASD move, Space jump",
             "Arrow keys / Q,E look",
             "Mouse: left break, right place",
-            "Wheel/1-7 choose block"
+            "Wheel/1-7 choose block",
+            "F1 toggle mouse look (Esc release)",
+            "F2/F3 invert X/Y",
+            "+/- adjust sensitivity"
         };
 
         double yOffset = padding + fpsLayout.Height + padding * 0.8;
@@ -952,6 +1238,20 @@ public sealed class GameControl : Control
             infoLayout.Draw(context, new Point(padding, yOffset));
             yOffset += infoLayout.Height + 2;
         }
+
+        var settingsLayout = new TextLayout(
+            $"Mouse: {( _mouseLookEnabled ? "On" : "Off") } | Sens {_mouseSensitivity:0.00}",
+            _hudTypeface,
+            13,
+            Brushes.White);
+        settingsLayout.Draw(context, new Point(padding, yOffset + 4));
+
+        var invertLayout = new TextLayout(
+            $"Invert X: {(_invertMouseX ? "On" : "Off")}  Y: {(_invertMouseY ? "On" : "Off")}",
+            _hudTypeface,
+            13,
+            Brushes.White);
+        invertLayout.Draw(context, new Point(padding, yOffset + 4 + settingsLayout.Height + 2));
 
         if (_hasCurrentHit)
         {
@@ -963,6 +1263,231 @@ public sealed class GameControl : Control
 
             var textPos = new Point(Bounds.Width / 2 - hitLayout.Width / 2, Bounds.Height * 0.12);
             hitLayout.Draw(context, textPos);
+        }
+    }
+
+    private void HandleToggleInput()
+    {
+        if (IsKeyPressed(Key.F1))
+        {
+            SetMouseLook(!_mouseLookEnabled);
+        }
+
+        if (_mouseLookEnabled && IsKeyPressed(Key.Escape))
+        {
+            SetMouseLook(false);
+        }
+
+        if (IsKeyPressed(Key.F2))
+        {
+            _invertMouseX = !_invertMouseX;
+        }
+
+        if (IsKeyPressed(Key.F3))
+        {
+            _invertMouseY = !_invertMouseY;
+        }
+
+        if (IsKeyPressed(Key.Add) || IsKeyPressed(Key.OemPlus))
+        {
+            AdjustMouseSensitivity(0.02f);
+        }
+
+        if (IsKeyPressed(Key.Subtract) || IsKeyPressed(Key.OemMinus))
+        {
+            AdjustMouseSensitivity(-0.02f);
+        }
+    }
+
+    private void AdjustMouseSensitivity(float delta)
+    {
+        _mouseSensitivity = Math.Clamp(_mouseSensitivity + delta, 0.05f, 0.6f);
+    }
+
+    private void SetMouseLook(bool enabled)
+    {
+        if (_mouseLookEnabled == enabled)
+        {
+            return;
+        }
+
+        _mouseLookEnabled = enabled;
+
+        if (enabled)
+        {
+            _requestPointerCapture = true;
+            _lastPointerPosition = null;
+            if (TopLevel.GetTopLevel(this) is { } topLevel)
+            {
+                _previousCursor = topLevel.Cursor;
+                topLevel.Cursor = new Cursor(StandardCursorType.None);
+            }
+
+            Focus();
+        }
+        else
+        {
+            _requestPointerCapture = false;
+            _pendingMouseDeltaX = 0f;
+            _pendingMouseDeltaY = 0f;
+            _lastPointerPosition = null;
+
+            if (_capturedPointer is not null)
+            {
+                _capturedPointer.Capture(null);
+                _capturedPointer = null;
+            }
+
+            if (TopLevel.GetTopLevel(this) is { } topLevel)
+            {
+                topLevel.Cursor = _previousCursor ?? new Cursor(StandardCursorType.Arrow);
+            }
+
+            _previousCursor = null;
+        }
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+
+        if (!_mouseLookEnabled)
+        {
+            return;
+        }
+
+        if ((_capturedPointer is null || _capturedPointer != e.Pointer) && (_requestPointerCapture || e.Pointer.Captured != this))
+        {
+            e.Pointer.Capture(this);
+            _capturedPointer = e.Pointer;
+            _requestPointerCapture = false;
+            _lastPointerPosition = null;
+        }
+
+        var position = e.GetPosition(this);
+        if (_lastPointerPosition.HasValue)
+        {
+            Avalonia.Vector delta = position - _lastPointerPosition.Value;
+            _pendingMouseDeltaX += (float)delta.X;
+            _pendingMouseDeltaY += (float)delta.Y;
+        }
+
+        _lastPointerPosition = position;
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+
+        if (e.Pointer == _capturedPointer)
+        {
+            _capturedPointer = null;
+            _lastPointerPosition = null;
+            if (_mouseLookEnabled)
+            {
+                _requestPointerCapture = true;
+            }
+        }
+    }
+
+    protected override void OnLostFocus(RoutedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        _keysDown.Clear();
+        _keysPressed.Clear();
+        _physicalKeysDown.Clear();
+        _physicalKeysPressed.Clear();
+        if (_mouseLookEnabled)
+        {
+            SetMouseLook(false);
+        }
+    }
+
+    private bool TryProject(Vector3 worldPoint, out Point projected)
+    {
+        projected = default;
+
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return false;
+        }
+
+        Vector3 eye = _player.EyePosition;
+        Vector3 toPoint = worldPoint - eye;
+
+        float x = Vector3.Dot(toPoint, _cameraRight);
+        float y = Vector3.Dot(toPoint, _cameraUp);
+        float z = Vector3.Dot(toPoint, _cameraForward);
+
+        if (z <= 0.05f)
+        {
+            return false;
+        }
+
+        float ndcX = x / (z * _cameraTanHalfFov * _cameraAspect);
+        float ndcY = y / (z * _cameraTanHalfFov);
+
+        double screenX = (ndcX + 1d) * 0.5d * Bounds.Width;
+        double screenY = (1d - ndcY) * 0.5d * Bounds.Height;
+
+        if (!double.IsFinite(screenX) || !double.IsFinite(screenY))
+        {
+            return false;
+        }
+
+        projected = new Point(screenX, screenY);
+        return true;
+    }
+
+    private static void GetFaceCorners(Int3 block, BlockFace face, Span<Vector3> destination)
+    {
+        Vector3 min = block.ToVector3();
+        Vector3 max = min + Vector3.One;
+
+        switch (face)
+        {
+            case BlockFace.PositiveX:
+                destination[0] = new Vector3(max.X, min.Y, min.Z);
+                destination[1] = new Vector3(max.X, max.Y, min.Z);
+                destination[2] = new Vector3(max.X, max.Y, max.Z);
+                destination[3] = new Vector3(max.X, min.Y, max.Z);
+                break;
+            case BlockFace.NegativeX:
+                destination[0] = new Vector3(min.X, min.Y, min.Z);
+                destination[1] = new Vector3(min.X, min.Y, max.Z);
+                destination[2] = new Vector3(min.X, max.Y, max.Z);
+                destination[3] = new Vector3(min.X, max.Y, min.Z);
+                break;
+            case BlockFace.PositiveY:
+                destination[0] = new Vector3(min.X, max.Y, min.Z);
+                destination[1] = new Vector3(max.X, max.Y, min.Z);
+                destination[2] = new Vector3(max.X, max.Y, max.Z);
+                destination[3] = new Vector3(min.X, max.Y, max.Z);
+                break;
+            case BlockFace.NegativeY:
+                destination[0] = new Vector3(min.X, min.Y, min.Z);
+                destination[1] = new Vector3(min.X, min.Y, max.Z);
+                destination[2] = new Vector3(max.X, min.Y, max.Z);
+                destination[3] = new Vector3(max.X, min.Y, min.Z);
+                break;
+            case BlockFace.PositiveZ:
+                destination[0] = new Vector3(min.X, min.Y, max.Z);
+                destination[1] = new Vector3(min.X, max.Y, max.Z);
+                destination[2] = new Vector3(max.X, max.Y, max.Z);
+                destination[3] = new Vector3(max.X, min.Y, max.Z);
+                break;
+            case BlockFace.NegativeZ:
+                destination[0] = new Vector3(min.X, min.Y, min.Z);
+                destination[1] = new Vector3(max.X, min.Y, min.Z);
+                destination[2] = new Vector3(max.X, max.Y, min.Z);
+                destination[3] = new Vector3(min.X, max.Y, min.Z);
+                break;
+            default:
+                destination[0] = min;
+                destination[1] = min;
+                destination[2] = min;
+                destination[3] = min;
+                break;
         }
     }
 }
