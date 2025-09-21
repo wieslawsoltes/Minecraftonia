@@ -51,16 +51,124 @@ public sealed class MinecraftoniaGame
         float initialYaw = 180f,
         float initialPitch = -12f,
         BlockTextures? textures = null)
+        : this(
+            new MinecraftoniaVoxelWorld(width, height, depth, waterLevel, seed),
+            textures ?? new BlockTextures(),
+            new Player
+            {
+                Yaw = initialYaw,
+                Pitch = initialPitch
+            },
+            selectedPaletteIndex: 0,
+            initializeSpawn: true)
     {
-        World = new MinecraftoniaVoxelWorld(width, height, depth, waterLevel, seed);
-        Textures = textures ?? new BlockTextures();
-        Player = new Player
+    }
+
+    private MinecraftoniaGame(
+        MinecraftoniaVoxelWorld world,
+        BlockTextures textures,
+        Player player,
+        int selectedPaletteIndex,
+        bool initializeSpawn)
+    {
+        World = world;
+        Textures = textures;
+        Player = player;
+        SelectedPaletteIndex = Math.Clamp(selectedPaletteIndex, 0, _palette.Length - 1);
+
+        if (initializeSpawn)
         {
-            Yaw = initialYaw,
-            Pitch = initialPitch
+            InitializePlayerPosition();
+        }
+    }
+
+    public static MinecraftoniaGame FromSave(GameSaveData save, BlockTextures? textures = null)
+    {
+        if (save.Version != GameSaveData.CurrentVersion)
+        {
+            throw new NotSupportedException($"Unsupported save version: {save.Version}");
+        }
+
+        int expected = save.Width * save.Height * save.Depth;
+        if (save.Blocks.Length != expected)
+        {
+            throw new InvalidOperationException($"Corrupted save: expected {expected} blocks, found {save.Blocks.Length}.");
+        }
+
+        var blocks = new BlockType[save.Blocks.Length];
+        for (int i = 0; i < blocks.Length; i++)
+        {
+            blocks[i] = (BlockType)save.Blocks[i];
+        }
+
+        var world = new MinecraftoniaVoxelWorld(
+            save.Width,
+            save.Height,
+            save.Depth,
+            save.WaterLevel,
+            save.Seed,
+            blocks);
+
+        var player = new Player
+        {
+            Position = new Vector3(save.Player.X, save.Player.Y, save.Player.Z),
+            Velocity = new Vector3(save.Player.VelocityX, save.Player.VelocityY, save.Player.VelocityZ),
+            Yaw = save.Player.Yaw,
+            Pitch = save.Player.Pitch,
+            IsOnGround = save.Player.IsOnGround,
+            EyeHeight = save.Player.EyeHeight
         };
 
-        InitializePlayerPosition();
+        var texturesInstance = textures ?? new BlockTextures();
+
+        return new MinecraftoniaGame(world, texturesInstance, player, save.SelectedPaletteIndex, initializeSpawn: false);
+    }
+
+    public GameSaveData CreateSaveData()
+    {
+        var blocks = CaptureWorldBlocks();
+
+        return new GameSaveData
+        {
+            Width = World.Width,
+            Height = World.Height,
+            Depth = World.Depth,
+            WaterLevel = World.WaterLevel,
+            Seed = World.Seed,
+            Blocks = blocks,
+            SelectedPaletteIndex = SelectedPaletteIndex,
+            Player = new PlayerSaveData
+            {
+                X = Player.Position.X,
+                Y = Player.Position.Y,
+                Z = Player.Position.Z,
+                VelocityX = Player.Velocity.X,
+                VelocityY = Player.Velocity.Y,
+                VelocityZ = Player.Velocity.Z,
+                Yaw = Player.Yaw,
+                Pitch = Player.Pitch,
+                IsOnGround = Player.IsOnGround,
+                EyeHeight = Player.EyeHeight
+            }
+        };
+    }
+
+    private byte[] CaptureWorldBlocks()
+    {
+        var data = new byte[World.Width * World.Height * World.Depth];
+        int index = 0;
+        for (int x = 0; x < World.Width; x++)
+        {
+            for (int y = 0; y < World.Height; y++)
+            {
+                for (int z = 0; z < World.Depth; z++)
+                {
+                    data[index++] = (byte)World.GetBlock(x, y, z);
+                }
+            }
+        }
+
+        return data;
     }
 
     public void Update(in GameInputState input, float deltaTime)

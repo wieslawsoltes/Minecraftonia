@@ -8,6 +8,292 @@
         Title="Minecraftonia"
         Width="1280"
         Height="720"
-        Background="Black">
-    <game:GameControl/>
+        Background="#FF080B10">
+    <Window.Resources>
+        <LinearGradientBrush x:Key="OverlayBackdropGradient" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#66060A11" Offset="0"/>
+            <GradientStop Color="#99060A11" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="PanelGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#D51A2432" Offset="0"/>
+            <GradientStop Color="#B0161E2A" Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="PanelBorderBrush" Color="#668BA8D6"/>
+        <SolidColorBrush x:Key="MenuSubTextBrush" Color="#D4DCE9FF"/>
+        <LinearGradientBrush x:Key="ButtonPrimaryBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#992C6AE0" Offset="0"/>
+            <GradientStop Color="#CC1E4CAB" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ButtonPrimaryHoverBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#CC3C7CFF" Offset="0"/>
+            <GradientStop Color="#E62150C8" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ButtonSecondaryBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#80364D66" Offset="0"/>
+            <GradientStop Color="#99304255" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ButtonSecondaryHoverBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#9942607D" Offset="0"/>
+            <GradientStop Color="#B3374A6A" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ButtonDangerBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#AAAB3B2D" Offset="0"/>
+            <GradientStop Color="#CC7F1D15" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ButtonDangerHoverBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#CCCB4935" Offset="0"/>
+            <GradientStop Color="#E68F261B" Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="ButtonGhostBrush" Color="#40101824"/>
+        <SolidColorBrush x:Key="ButtonGhostHoverBrush" Color="#60203540"/>
+    </Window.Resources>
+    <Window.Styles>
+        <Style Selector="Button.menu">
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="MinHeight" Value="52"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="22,14"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{StaticResource ButtonGhostBrush}"/>
+            <Setter Property="BorderBrush" Value="#558BA8D6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.menu:disabled">
+            <Setter Property="Foreground" Value="#FF8FA2BD"/>
+            <Setter Property="Background" Value="#30101824"/>
+            <Setter Property="BorderBrush" Value="#338FA2BD"/>
+        </Style>
+        <Style Selector="Button.menu:pointerover">
+            <Setter Property="Background" Value="{StaticResource ButtonGhostHoverBrush}"/>
+            <Setter Property="BorderBrush" Value="#77BFD3FF"/>
+        </Style>
+        <Style Selector="Button.menu:pressed">
+            <Setter Property="Background" Value="#70101824"/>
+            <Setter Property="BorderBrush" Value="#88BFD3FF"/>
+        </Style>
+        <Style Selector="Button.menu:focus-visible">
+            <Setter Property="BorderBrush" Value="#CC9CCBFF"/>
+        </Style>
+        <Style Selector="Button.menu-primary">
+            <Setter Property="Background" Value="{StaticResource ButtonPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="#7788C8FF"/>
+        </Style>
+        <Style Selector="Button.menu-secondary">
+            <Setter Property="Background" Value="{StaticResource ButtonSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="#557095B8"/>
+        </Style>
+        <Style Selector="Button.menu-danger">
+            <Setter Property="Background" Value="{StaticResource ButtonDangerBrush}"/>
+            <Setter Property="BorderBrush" Value="#AAE06552"/>
+        </Style>
+        <Style Selector="Button.menu-primary:pointerover">
+            <Setter Property="Background" Value="{StaticResource ButtonPrimaryHoverBrush}"/>
+            <Setter Property="BorderBrush" Value="#AACCDEFF"/>
+        </Style>
+        <Style Selector="Button.menu-secondary:pointerover">
+            <Setter Property="Background" Value="{StaticResource ButtonSecondaryHoverBrush}"/>
+            <Setter Property="BorderBrush" Value="#7799BCD8"/>
+        </Style>
+        <Style Selector="Button.menu-danger:pointerover">
+            <Setter Property="Background" Value="{StaticResource ButtonDangerHoverBrush}"/>
+            <Setter Property="BorderBrush" Value="#DDED7A5C"/>
+        </Style>
+        <Style Selector="Button.menu-primary:pressed">
+            <Setter Property="Background" Value="#B23061C5"/>
+        </Style>
+        <Style Selector="Button.menu-secondary:pressed">
+            <Setter Property="Background" Value="#8A2E4158"/>
+        </Style>
+        <Style Selector="Button.menu-danger:pressed">
+            <Setter Property="Background" Value="#BB973221"/>
+        </Style>
+    </Window.Styles>
+    <Grid>
+        <game:GameControl x:Name="GameView"/>
+
+        <Border x:Name="MainMenuOverlay"
+                Background="{StaticResource OverlayBackdropGradient}"
+                Padding="56"
+                IsVisible="True">
+            <Border Background="{StaticResource PanelGradient}"
+                    CornerRadius="24"
+                    BorderBrush="{StaticResource PanelBorderBrush}"
+                    BorderThickness="1.5"
+                    Padding="34"
+                    HorizontalAlignment="Center">
+                <StackPanel Spacing="22" Width="360">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Minecraftonia"
+                                   FontSize="40"
+                                   FontWeight="Bold"
+                                   Foreground="White"/>
+                        <TextBlock Text="Shaping voxels beyond the horizon"
+                                   FontSize="16"
+                                   Foreground="#FF9CB6E0"/>
+                        <Rectangle Height="2"
+                                   Fill="#338BA8D6"
+                                   Margin="0,12,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Play"
+                                   FontSize="13"
+                                   Foreground="#FFA4B6D1"
+                                   TextWrapping="Wrap"/>
+                        <Button x:Name="StartButton"
+                                Click="StartButton_OnClick"
+                                Classes="menu menu-primary">
+                            <StackPanel Spacing="2" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Start New Game"
+                                           FontSize="18"
+                                           FontWeight="Bold"/>
+                                <TextBlock Text="Generate a fresh world seed"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MenuSubTextBrush}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="LoadButton"
+                                Click="LoadButton_OnClick"
+                                Classes="menu menu-primary">
+                            <StackPanel Spacing="2" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Continue Last Save"
+                                           FontSize="18"
+                                           FontWeight="Bold"/>
+                                <TextBlock Text="Jump back into your latest progress"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MenuSubTextBrush}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button IsEnabled="False"
+                                Classes="menu menu-secondary">
+                            <StackPanel Spacing="2" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Multiplayer"
+                                           FontSize="18"
+                                           FontWeight="Bold"/>
+                                <TextBlock Text="Coming in a future update"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MenuSubTextBrush}"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="System"
+                                   FontSize="13"
+                                   Foreground="#FFA4B6D1"/>
+                        <Button Content="Exit to Desktop"
+                                Click="ExitButton_OnClick"
+                                Classes="menu menu-danger"/>
+                        <TextBlock x:Name="MainMenuStatus"
+                                   TextWrapping="Wrap"
+                                   Foreground="#FFE3EBFF"
+                                   FontSize="14"
+                                   Margin="0,6,0,0"
+                                   TextAlignment="Left"
+                                   IsVisible="False"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border x:Name="PauseMenuOverlay"
+                Background="{StaticResource OverlayBackdropGradient}"
+                Padding="56"
+                IsVisible="False">
+            <Border Background="{StaticResource PanelGradient}"
+                    CornerRadius="24"
+                    BorderBrush="{StaticResource PanelBorderBrush}"
+                    BorderThickness="1.5"
+                    Padding="34"
+                    HorizontalAlignment="Center">
+                <StackPanel Spacing="22" Width="360">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Paused"
+                                   FontSize="34"
+                                   FontWeight="Bold"
+                                   Foreground="White"/>
+                        <TextBlock Text="Take a breath — the world awaits"
+                                   FontSize="15"
+                                   Foreground="#FF9CB6E0"/>
+                        <Rectangle Height="2"
+                                   Fill="#338BA8D6"
+                                   Margin="0,12,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Quick Actions"
+                                   FontSize="13"
+                                   Foreground="#FFA4B6D1"/>
+                        <Button Click="ResumeButton_OnClick"
+                                Classes="menu menu-primary">
+                            <StackPanel Spacing="2" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Resume Exploring"
+                                           FontSize="18"
+                                           FontWeight="Bold"/>
+                                <TextBlock Text="Drop back into the world"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MenuSubTextBrush}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Click="StartButton_OnClick"
+                                Classes="menu menu-primary">
+                            <StackPanel Spacing="2" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Start New Game"
+                                           FontSize="18"
+                                           FontWeight="Bold"/>
+                                <TextBlock Text="Abandon current run and regenerate"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MenuSubTextBrush}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Click="SaveAndExitButton_OnClick"
+                                Classes="menu menu-secondary">
+                            <StackPanel Spacing="2" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Save Progress &amp; Exit"
+                                           FontSize="18"
+                                           FontWeight="Bold"/>
+                                <TextBlock Text="Write your world to the latest slot"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MenuSubTextBrush}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Click="ExitWithoutSavingButton_OnClick"
+                                Classes="menu menu-danger">
+                            <StackPanel Spacing="2" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Exit Without Saving"
+                                           FontSize="18"
+                                           FontWeight="Bold"/>
+                                <TextBlock Text="Lose unsaved changes"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MenuSubTextBrush}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Click="BackToMenuButton_OnClick"
+                                Classes="menu menu-secondary">
+                            <StackPanel Spacing="2" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Return To Main Menu"
+                                           FontSize="18"
+                                           FontWeight="Bold"/>
+                                <TextBlock Text="Pause without closing the game"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MenuSubTextBrush}"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <TextBlock x:Name="PauseMenuStatus"
+                               TextWrapping="Wrap"
+                               Foreground="#FFE3EBFF"
+                               FontSize="14"
+                               TextAlignment="Left"
+                               IsVisible="False"/>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
 </Window>

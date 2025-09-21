@@ -29,7 +29,8 @@ public sealed class GameControl : Control
     private bool _breakQueued;
     private bool _placeQueued;
 
-    private readonly MinecraftoniaGame _game;
+    private MinecraftoniaGame _game;
+    private readonly BlockTextures _textures;
     private readonly VoxelRayTracer<BlockType> _rayTracer;
     private WriteableBitmap? _framebuffer;
     private readonly PixelSize _renderSize = new PixelSize(360, 202);
@@ -57,13 +58,19 @@ public sealed class GameControl : Control
     private TopLevel? _topLevel;
 
     private int _paletteScrollDelta;
+    private bool _isGameActive;
+
+    public event EventHandler? PauseRequested;
+
+    public bool IsGameActive => _isGameActive;
 
     public GameControl()
     {
         Focusable = true;
         ClipToBounds = true;
 
-        _game = new MinecraftoniaGame(96, 48, 96);
+        _textures = new BlockTextures();
+        _game = new MinecraftoniaGame(96, 48, 96, textures: _textures);
         _rayTracer = new VoxelRayTracer<BlockType>(
             _renderSize,
             FieldOfViewDegrees,
@@ -87,7 +94,7 @@ public sealed class GameControl : Control
         _topLevel = TopLevel.GetTopLevel(this);
         SubscribeToTopLevelInput();
 
-        if (!_mouseLookEnabled)
+        if (_isGameActive && !_mouseLookEnabled)
         {
             SetMouseLook(true);
         }
@@ -130,6 +137,15 @@ public sealed class GameControl : Control
 
     private void UpdateGame(float deltaTime)
     {
+        if (!_isGameActive)
+        {
+            _keysPressed.Clear();
+            _physicalKeysPressed.Clear();
+            RenderScene();
+            InvalidateVisual();
+            return;
+        }
+
         HandleToggleInput();
         float keyboardYaw = 0f;
         if (IsKeyDown(Key.Left)) keyboardYaw -= 1f;
@@ -237,6 +253,11 @@ public sealed class GameControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        if (!_isGameActive)
+        {
+            return;
+        }
+
         Focus();
 
         var properties = e.GetCurrentPoint(this).Properties;
@@ -259,6 +280,11 @@ public sealed class GameControl : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
+        if (!_isGameActive)
+        {
+            return;
+        }
+
         if (e.Delta.Y > 0)
         {
             _paletteScrollDelta += 1;
@@ -486,14 +512,17 @@ public sealed class GameControl : Control
 
     private void HandleToggleInput()
     {
-        if (IsKeyPressed(Key.F1))
+        if (_isGameActive)
         {
-            SetMouseLook(!_mouseLookEnabled);
-        }
+            if (IsKeyPressed(Key.F1))
+            {
+                SetMouseLook(!_mouseLookEnabled);
+            }
 
-        if (_mouseLookEnabled && IsKeyPressed(Key.Escape))
-        {
-            SetMouseLook(false);
+            if (IsKeyPressed(Key.Escape))
+            {
+                RequestPause();
+            }
         }
 
         if (IsKeyPressed(Key.F2))
@@ -639,11 +668,11 @@ public sealed class GameControl : Control
         {
             _capturedPointer = null;
             _lastPointerPosition = null;
-        if (_mouseLookEnabled)
-        {
-            _requestPointerCapture = true;
+            if (_mouseLookEnabled)
+            {
+                _requestPointerCapture = true;
+            }
         }
-    }
     }
 
     protected override void OnLostFocus(RoutedEventArgs e)
@@ -657,5 +686,83 @@ public sealed class GameControl : Control
         {
             SetMouseLook(false);
         }
+    }
+
+    public void StartNewGame()
+    {
+        _game = new MinecraftoniaGame(96, 48, 96, textures: _textures);
+        _isGameActive = true;
+        ResetTransientInputState();
+        _smoothedFps = 60f;
+        RenderScene();
+        InvalidateVisual();
+        SetMouseLook(true);
+        Focus();
+    }
+
+    public void LoadGame(GameSaveData save)
+    {
+        _game = MinecraftoniaGame.FromSave(save, _textures);
+        _isGameActive = true;
+        ResetTransientInputState();
+        _smoothedFps = 60f;
+        RenderScene();
+        InvalidateVisual();
+        SetMouseLook(true);
+        Focus();
+    }
+
+    public GameSaveData CreateSaveData() => _game.CreateSaveData();
+
+    public void PauseGame()
+    {
+        if (!_isGameActive)
+        {
+            return;
+        }
+
+        _isGameActive = false;
+        if (_mouseLookEnabled)
+        {
+            SetMouseLook(false);
+        }
+    }
+
+    public void ResumeGame()
+    {
+        if (_isGameActive)
+        {
+            return;
+        }
+
+        _isGameActive = true;
+        ResetTransientInputState();
+        _smoothedFps = 60f;
+        RenderScene();
+        InvalidateVisual();
+        SetMouseLook(true);
+        Focus();
+    }
+
+    private void ResetTransientInputState()
+    {
+        _breakQueued = false;
+        _placeQueued = false;
+        _pendingMouseDeltaX = 0f;
+        _pendingMouseDeltaY = 0f;
+        _paletteScrollDelta = 0;
+        _keysDown.Clear();
+        _keysPressed.Clear();
+        _physicalKeysDown.Clear();
+        _physicalKeysPressed.Clear();
+        _capturedPointer = null;
+        _requestPointerCapture = false;
+        _lastPointerPosition = null;
+    }
+
+    private void RequestPause()
+    {
+        PauseGame();
+        PauseRequested?.Invoke(this, EventArgs.Empty);
     }
 }

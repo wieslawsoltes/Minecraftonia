@@ -10,14 +10,50 @@ public sealed class MinecraftoniaVoxelWorld : VoxelWorld<BlockType>
     private readonly Random _random;
 
     public int WaterLevel { get; }
+    public int Seed { get; }
 
-    public MinecraftoniaVoxelWorld(int width, int height, int depth, int waterLevel = 8, int seed = 1337)
+    public MinecraftoniaVoxelWorld(
+        int width,
+        int height,
+        int depth,
+        int waterLevel = 8,
+        int seed = 1337,
+        ReadOnlySpan<BlockType> blockData = default)
         : base(width, height, depth)
     {
         WaterLevel = waterLevel;
+        Seed = seed;
         _random = new Random(seed);
 
-        GenerateTerrain();
+        if (!blockData.IsEmpty)
+        {
+            LoadBlocks(blockData);
+        }
+        else
+        {
+            GenerateTerrain();
+        }
+    }
+
+    private void LoadBlocks(ReadOnlySpan<BlockType> blockData)
+    {
+        int expected = Width * Height * Depth;
+        if (blockData.Length != expected)
+        {
+            throw new ArgumentException($"Block data must contain {expected} entries.", nameof(blockData));
+        }
+
+        int index = 0;
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                for (int z = 0; z < Depth; z++)
+                {
+                    Blocks[x, y, z] = blockData[index++];
+                }
+            }
+        }
     }
 
     private void GenerateTerrain()
