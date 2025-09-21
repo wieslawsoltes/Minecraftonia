@@ -47,6 +47,7 @@ jobs:
         run: dotnet publish Minecraftonia/Minecraftonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish/${{ matrix.rid }}
 
       - name: Remove debug artifacts
+        shell: bash
         run: |
           find publish/${{ matrix.rid }} -name '*.dSYM' -prune -exec rm -rf {} +
           find publish/${{ matrix.rid }} -type f \( -name '*.pdb' -o -name '*.pdf' -o -name '*.dsym' -o -name '*.dbg' \) -delete
