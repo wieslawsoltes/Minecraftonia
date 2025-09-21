@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Minecraftonia.VoxelEngine;
+using Minecraftonia.VoxelRendering;
 
 namespace Minecraftonia.Game;
 
-public sealed class BlockTextures
+public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
 {
     private readonly Dictionary<(BlockType block, BlockFace face), BlockTexture> _textures = new();
 
@@ -73,14 +75,33 @@ public sealed class BlockTextures
         Register(BlockType.Leaves, BlockFace.NegativeZ, leaves);
     }
 
-    public Vector4 Sample(BlockType type, BlockFace face, float u, float v)
+    public VoxelMaterialSample Sample(BlockType type, BlockFace face, float u, float v)
     {
         if (!_textures.TryGetValue((type, face), out var texture))
         {
             texture = _textures[(type, BlockFace.PositiveY)];
         }
 
-        return texture.Sample(u, v);
+        Vector4 sample = texture.Sample(u, v);
+        Vector3 color = new(sample.X, sample.Y, sample.Z);
+        float opacity = sample.W;
+
+        if (type.IsSolid())
+        {
+            opacity = 1f;
+        }
+        else if (type == BlockType.Water)
+        {
+            opacity = MathF.Min(0.6f, opacity + 0.1f);
+            color *= 0.85f;
+        }
+        else if (type == BlockType.Leaves)
+        {
+            opacity = MathF.Min(0.65f, opacity);
+        }
+
+        color = Vector3.Clamp(color, Vector3.Zero, Vector3.One);
+        return new VoxelMaterialSample(color, opacity);
     }
 
     private void Register(BlockType block, BlockFace face, BlockTexture texture)

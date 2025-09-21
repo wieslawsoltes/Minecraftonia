@@ -25,4 +25,9 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
+    <ProjectReference Include="..\Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj" />
+  </ItemGroup>
 </Project>

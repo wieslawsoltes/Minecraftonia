@@ -5,6 +5,10 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia", "Minecraftonia\Minecraftonia.csproj", "{495B05BC-24D5-448E-A999-847246D1C8A3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.VoxelEngine", "Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj", "{4FDB9429-F361-4A58-AD68-9211886DCA8A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.VoxelRendering", "Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj", "{D50308BF-5896-45F1-94D9-E1B76FD14FE0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +31,30 @@ Global
 		{495B05BC-24D5-448E-A999-847246D1C8A3}.Release|x64.Build.0 = Release|Any CPU
 		{495B05BC-24D5-448E-A999-847246D1C8A3}.Release|x86.ActiveCfg = Release|Any CPU
 		{495B05BC-24D5-448E-A999-847246D1C8A3}.Release|x86.Build.0 = Release|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Debug|x64.Build.0 = Debug|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Debug|x86.Build.0 = Debug|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|x64.ActiveCfg = Release|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|x64.Build.0 = Release|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|x86.ActiveCfg = Release|Any CPU
+		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|x86.Build.0 = Release|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|x64.Build.0 = Debug|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|x86.Build.0 = Debug|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|x64.ActiveCfg = Release|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|x64.Build.0 = Release|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|x86.ActiveCfg = Release|Any CPU
+		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.VoxelEngine;
 
 public sealed class Player
 {

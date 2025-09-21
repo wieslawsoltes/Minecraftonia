@@ -1,53 +1,24 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Minecraftonia.VoxelEngine;
 
 namespace Minecraftonia.Game;
 
-public sealed class VoxelWorld
+public sealed class MinecraftoniaVoxelWorld : VoxelWorld<BlockType>
 {
-    private readonly BlockType[,,] _blocks;
     private readonly Random _random;
-
-    public int Width { get; }
-    public int Height { get; }
-    public int Depth { get; }
 
     public int WaterLevel { get; }
 
-    public VoxelWorld(int width, int height, int depth, int waterLevel = 8, int seed = 1337)
+    public MinecraftoniaVoxelWorld(int width, int height, int depth, int waterLevel = 8, int seed = 1337)
+        : base(width, height, depth)
     {
-        Width = width;
-        Height = height;
-        Depth = depth;
         WaterLevel = waterLevel;
-        _blocks = new BlockType[width, height, depth];
         _random = new Random(seed);
 
         GenerateTerrain();
     }
-
-    public bool InBounds(int x, int y, int z)
-    {
-        return x >= 0 && x < Width && y >= 0 && y < Height && z >= 0 && z < Depth;
-    }
-
-    public BlockType GetBlock(int x, int y, int z)
-    {
-        return InBounds(x, y, z) ? _blocks[x, y, z] : BlockType.Air;
-    }
-
-    public BlockType GetBlock(Int3 position) => GetBlock(position.X, position.Y, position.Z);
-
-    public void SetBlock(int x, int y, int z, BlockType type)
-    {
-        if (InBounds(x, y, z))
-        {
-            _blocks[x, y, z] = type;
-        }
-    }
-
-    public void SetBlock(Int3 position, BlockType type) => SetBlock(position.X, position.Y, position.Z, type);
 
     private void GenerateTerrain()
     {
@@ -92,27 +63,27 @@ public sealed class VoxelWorld
                         block = BlockType.Stone;
                     }
 
-                    _blocks[x, y, z] = block;
+                    Blocks[x, y, z] = block;
                 }
 
                 // Fill below water level with water and sand edges.
                 for (int y = WaterLevel; y >= 0; y--)
                 {
-                    if (_blocks[x, y, z] == BlockType.Air)
+                    if (Blocks[x, y, z] == BlockType.Air)
                     {
                         if (y <= WaterLevel)
                         {
-                            _blocks[x, y, z] = BlockType.Water;
+                            Blocks[x, y, z] = BlockType.Water;
                         }
                     }
                 }
 
                 if (surfaceY <= WaterLevel + 1)
                 {
-                    _blocks[x, surfaceY, z] = BlockType.Sand;
+                    Blocks[x, surfaceY, z] = BlockType.Sand;
                     for (int offset = 1; offset <= 2 && surfaceY - offset >= 0; offset++)
                     {
-                        _blocks[x, surfaceY - offset, z] = BlockType.Sand;
+                        Blocks[x, surfaceY - offset, z] = BlockType.Sand;
                     }
                 }
             }
@@ -160,7 +131,7 @@ public sealed class VoxelWorld
                                 int z = pz + dz;
                                 if (InBounds(x, y, z) && y > 1)
                                 {
-                                    _blocks[x, y, z] = BlockType.Air;
+                                    Blocks[x, y, z] = BlockType.Air;
                                 }
                             }
                         }
@@ -185,12 +156,12 @@ public sealed class VoxelWorld
             {
                 for (int y = Height - 2; y >= 1; y--)
                 {
-                    var block = _blocks[x, y, z];
+                    var block = Blocks[x, y, z];
                     if (block == BlockType.Grass)
                     {
                         if (_random.NextDouble() < 0.05)
                         {
-                            _blocks[x, y + 1, z] = BlockType.Leaves;
+                            Blocks[x, y + 1, z] = BlockType.Leaves;
                         }
                         break;
                     }
@@ -198,7 +169,7 @@ public sealed class VoxelWorld
                     {
                         if (_random.NextDouble() < 0.02)
                         {
-                            _blocks[x, y + 1, z] = BlockType.Wood;
+                            Blocks[x, y + 1, z] = BlockType.Wood;
                         }
                         break;
                     }
@@ -225,7 +196,7 @@ public sealed class VoxelWorld
                 continue;
             }
 
-            var blockBelow = _blocks[x, surfaceY, z];
+            var blockBelow = Blocks[x, surfaceY, z];
             if (blockBelow != BlockType.Grass)
             {
                 continue;
@@ -242,7 +213,7 @@ public sealed class VoxelWorld
     {
         for (int y = Height - 2; y >= 1; y--)
         {
-            var block = _blocks[x, y, z];
+            var block = Blocks[x, y, z];
             if (block == BlockType.Grass || block == BlockType.Sand)
             {
                 return y;
@@ -260,7 +231,7 @@ public sealed class VoxelWorld
         {
             if (InBounds(x, y + i, z))
             {
-                _blocks[x, y + i, z] = BlockType.Wood;
+                Blocks[x, y + i, z] = BlockType.Wood;
             }
         }
 
@@ -284,9 +255,9 @@ public sealed class VoxelWorld
                         int pz = z + dz;
                         if (InBounds(px, py, pz))
                         {
-                            if (_blocks[px, py, pz] == BlockType.Air)
+                            if (Blocks[px, py, pz] == BlockType.Air)
                             {
-                                _blocks[px, py, pz] = BlockType.Leaves;
+                                Blocks[px, py, pz] = BlockType.Leaves;
                             }
                         }
                     }

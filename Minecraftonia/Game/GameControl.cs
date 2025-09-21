@@ -11,6 +11,8 @@ using Avalonia.Media.Imaging;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Minecraftonia.VoxelEngine;
+using Minecraftonia.VoxelRendering;
 
 namespace Minecraftonia.Game;
 
@@ -29,19 +31,17 @@ public sealed class GameControl : Control
     private bool _breakQueued;
     private bool _placeQueued;
 
-    private readonly VoxelWorld _world;
+    private readonly MinecraftoniaVoxelWorld _world;
     private readonly Player _player;
     private readonly BlockTextures _textures;
+    private readonly VoxelRayTracer<BlockType> _rayTracer;
     private WriteableBitmap? _framebuffer;
     private readonly PixelSize _renderSize = new PixelSize(360, 202);
 
-    private Vector3 _cameraForward = Vector3.UnitZ;
-    private Vector3 _cameraRight = Vector3.UnitX;
-    private Vector3 _cameraUp = Vector3.UnitY;
-    private float _cameraTanHalfFov;
-    private float _cameraAspect;
+    private VoxelCamera _camera;
+    private bool _hasCamera;
 
-    private RaycastHit _currentHit;
+    private VoxelRaycastHit<BlockType> _currentHit;
     private bool _hasCurrentHit;
 
     private readonly Typeface _hudTypeface = Typeface.Default;
@@ -85,8 +85,13 @@ public sealed class GameControl : Control
         Focusable = true;
         ClipToBounds = true;
 
-        _world = new VoxelWorld(96, 48, 96);
+        _world = new MinecraftoniaVoxelWorld(96, 48, 96);
         _textures = new BlockTextures();
+        _rayTracer = new VoxelRayTracer<BlockType>(
+            _renderSize,
+            FieldOfViewDegrees,
+            block => block.IsSolid(),
+            block => block == BlockType.Air);
 
         _player = new Player
         {
@@ -95,8 +100,6 @@ public sealed class GameControl : Control
         };
 
         InitializePlayerPosition();
-
-        _cameraTanHalfFov = MathF.Tan(FieldOfViewDegrees * 0.5f * MathF.PI / 180f);
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _timer.Tick += OnTick;
@@ -577,7 +580,13 @@ public sealed class GameControl : Control
         Vector3 origin = _player.EyePosition;
         Vector3 direction = _player.Forward;
 
-        _hasCurrentHit = TryPickBlock(origin, direction, InteractionDistance, out _currentHit);
+        _hasCurrentHit = VoxelRaycaster.TryPick(
+            _world,
+            origin,
+            direction,
+            InteractionDistance,
+            block => block == BlockType.Air,
+            out _currentHit);
     }
 
     private void HandleInteractions()
@@ -668,382 +677,10 @@ public sealed class GameControl : Control
 
     private void RenderScene()
     {
-        EnsureFramebuffer();
-        if (_framebuffer is null)
-        {
-            return;
-        }
-
-        Vector3 eye = _player.EyePosition;
-        Vector3 forward = Vector3.Normalize(_player.Forward);
-        Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
-        if (right.LengthSquared() < 0.0001f)
-        {
-            right = Vector3.UnitX;
-        }
-
-        Vector3 up = Vector3.Normalize(Vector3.Cross(right, forward));
-
-        _cameraForward = forward;
-        _cameraRight = right;
-        _cameraUp = up;
-        _cameraAspect = _renderSize.Width / (float)_renderSize.Height;
-        _cameraTanHalfFov = MathF.Tan(FieldOfViewDegrees * 0.5f * MathF.PI / 180f);
-
-        using var fb = _framebuffer.Lock();
-        unsafe
-        {
-            byte* buffer = (byte*)fb.Address;
-            int stride = fb.RowBytes;
-            int width = _framebuffer.PixelSize.Width;
-            int height = _framebuffer.PixelSize.Height;
-
-            for (int y = 0; y < height; y++)
-            {
-                byte* row = buffer + y * stride;
-                float ndcY = 1f - ((y + 0.5f) / height) * 2f;
-
-                for (int x = 0; x < width; x++)
-                {
-                    float ndcX = ((x + 0.5f) / width) * 2f - 1f;
-                    Vector3 dir = forward
-                                   + ndcX * _cameraAspect * _cameraTanHalfFov * right
-                                   + ndcY * _cameraTanHalfFov * up;
-                    dir = Vector3.Normalize(dir);
-
-                    Vector4 sample = TraceRay(eye, dir, 90f, out float distance);
-                    sample = ApplyFog(sample, distance);
-                    WritePixel(row, x, sample);
-                }
-            }
-        }
-    }
-
-    private Vector4 TraceRay(Vector3 origin, Vector3 direction, float maxDistance, out float outDistance)
-    {
-        origin += direction * 0.0005f;
-
-        int mapX = (int)MathF.Floor(origin.X);
-        int mapY = (int)MathF.Floor(origin.Y);
-        int mapZ = (int)MathF.Floor(origin.Z);
-
-        float rayDirX = direction.X;
-        float rayDirY = direction.Y;
-        float rayDirZ = direction.Z;
-
-        int stepX = rayDirX < 0 ? -1 : 1;
-        int stepY = rayDirY < 0 ? -1 : 1;
-        int stepZ = rayDirZ < 0 ? -1 : 1;
-
-        float deltaDistX = rayDirX == 0 ? float.MaxValue : MathF.Abs(1f / rayDirX);
-        float deltaDistY = rayDirY == 0 ? float.MaxValue : MathF.Abs(1f / rayDirY);
-        float deltaDistZ = rayDirZ == 0 ? float.MaxValue : MathF.Abs(1f / rayDirZ);
-
-        float sideDistX = rayDirX < 0
-            ? (origin.X - mapX) * deltaDistX
-            : (mapX + 1f - origin.X) * deltaDistX;
-
-        float sideDistY = rayDirY < 0
-            ? (origin.Y - mapY) * deltaDistY
-            : (mapY + 1f - origin.Y) * deltaDistY;
-
-        float sideDistZ = rayDirZ < 0
-            ? (origin.Z - mapZ) * deltaDistZ
-            : (mapZ + 1f - origin.Z) * deltaDistZ;
-
-        Vector3 accumColor = Vector3.Zero;
-        float accumAlpha = 0f;
-        float hitDistance = maxDistance;
-
-        const int maxSteps = 512;
-
-        for (int step = 0; step < maxSteps; step++)
-        {
-            BlockFace face;
-            float traveled;
-
-            if (sideDistX < sideDistY)
-            {
-                if (sideDistX < sideDistZ)
-                {
-                    mapX += stepX;
-                    traveled = sideDistX;
-                    sideDistX += deltaDistX;
-                    face = stepX > 0 ? BlockFace.NegativeX : BlockFace.PositiveX;
-                }
-                else
-                {
-                    mapZ += stepZ;
-                    traveled = sideDistZ;
-                    sideDistZ += deltaDistZ;
-                    face = stepZ > 0 ? BlockFace.NegativeZ : BlockFace.PositiveZ;
-                }
-            }
-            else
-            {
-                if (sideDistY < sideDistZ)
-                {
-                    mapY += stepY;
-                    traveled = sideDistY;
-                    sideDistY += deltaDistY;
-                    face = stepY > 0 ? BlockFace.NegativeY : BlockFace.PositiveY;
-                }
-                else
-                {
-                    mapZ += stepZ;
-                    traveled = sideDistZ;
-                    sideDistZ += deltaDistZ;
-                    face = stepZ > 0 ? BlockFace.NegativeZ : BlockFace.PositiveZ;
-                }
-            }
-
-            if (traveled >= maxDistance)
-            {
-                break;
-            }
-
-            if (!_world.InBounds(mapX, mapY, mapZ))
-            {
-                continue;
-            }
-
-            BlockType block = _world.GetBlock(mapX, mapY, mapZ);
-            if (block == BlockType.Air)
-            {
-                continue;
-            }
-
-            Vector3 hitPoint = origin + direction * traveled;
-            Vector3 local = hitPoint - new Vector3(mapX, mapY, mapZ);
-            Vector2 uv = ComputeFaceUV(face, local);
-            Vector4 sample = _textures.Sample(block, face, uv.X, uv.Y);
-            float light = GetFaceLight(face);
-            Vector3 rgb = new(sample.X, sample.Y, sample.Z);
-            rgb *= light;
-
-            float opacity = sample.W;
-            if (block.IsSolid())
-            {
-                opacity = 1f;
-            }
-            else if (block == BlockType.Water)
-            {
-                opacity = MathF.Min(0.6f, opacity + 0.1f);
-                rgb *= 0.85f;
-            }
-            else if (block == BlockType.Leaves)
-            {
-                opacity = MathF.Min(0.65f, opacity);
-            }
-
-            accumColor += (1f - accumAlpha) * opacity * rgb;
-            accumAlpha += (1f - accumAlpha) * opacity;
-            hitDistance = traveled;
-
-            if (accumAlpha >= 0.995f || block.IsSolid())
-            {
-                break;
-            }
-        }
-
-        if (accumAlpha < 0.995f)
-        {
-            Vector3 sky = SampleSky(direction);
-            accumColor += (1f - accumAlpha) * sky;
-            accumAlpha = 1f;
-            hitDistance = maxDistance;
-        }
-
-        accumColor = Vector3.Clamp(accumColor, Vector3.Zero, Vector3.One);
-        outDistance = hitDistance;
-        return new Vector4(accumColor, 1f);
-    }
-
-    private bool TryPickBlock(Vector3 origin, Vector3 direction, float maxDistance, out RaycastHit hit)
-    {
-        origin += direction * 0.0005f;
-
-        int mapX = (int)MathF.Floor(origin.X);
-        int mapY = (int)MathF.Floor(origin.Y);
-        int mapZ = (int)MathF.Floor(origin.Z);
-
-        float rayDirX = direction.X;
-        float rayDirY = direction.Y;
-        float rayDirZ = direction.Z;
-
-        int stepX = rayDirX < 0 ? -1 : 1;
-        int stepY = rayDirY < 0 ? -1 : 1;
-        int stepZ = rayDirZ < 0 ? -1 : 1;
-
-        float deltaDistX = rayDirX == 0 ? float.MaxValue : MathF.Abs(1f / rayDirX);
-        float deltaDistY = rayDirY == 0 ? float.MaxValue : MathF.Abs(1f / rayDirY);
-        float deltaDistZ = rayDirZ == 0 ? float.MaxValue : MathF.Abs(1f / rayDirZ);
-
-        float sideDistX = rayDirX < 0
-            ? (origin.X - mapX) * deltaDistX
-            : (mapX + 1f - origin.X) * deltaDistX;
-
-        float sideDistY = rayDirY < 0
-            ? (origin.Y - mapY) * deltaDistY
-            : (mapY + 1f - origin.Y) * deltaDistY;
-
-        float sideDistZ = rayDirZ < 0
-            ? (origin.Z - mapZ) * deltaDistZ
-            : (mapZ + 1f - origin.Z) * deltaDistZ;
-
-        const int maxSteps = 256;
-
-        for (int step = 0; step < maxSteps; step++)
-        {
-            BlockFace face;
-            float traveled;
-
-            if (sideDistX < sideDistY)
-            {
-                if (sideDistX < sideDistZ)
-                {
-                    mapX += stepX;
-                    traveled = sideDistX;
-                    sideDistX += deltaDistX;
-                    face = stepX > 0 ? BlockFace.NegativeX : BlockFace.PositiveX;
-                }
-                else
-                {
-                    mapZ += stepZ;
-                    traveled = sideDistZ;
-                    sideDistZ += deltaDistZ;
-                    face = stepZ > 0 ? BlockFace.NegativeZ : BlockFace.PositiveZ;
-                }
-            }
-            else
-            {
-                if (sideDistY < sideDistZ)
-                {
-                    mapY += stepY;
-                    traveled = sideDistY;
-                    sideDistY += deltaDistY;
-                    face = stepY > 0 ? BlockFace.NegativeY : BlockFace.PositiveY;
-                }
-                else
-                {
-                    mapZ += stepZ;
-                    traveled = sideDistZ;
-                    sideDistZ += deltaDistZ;
-                    face = stepZ > 0 ? BlockFace.NegativeZ : BlockFace.PositiveZ;
-                }
-            }
-
-            if (traveled >= maxDistance)
-            {
-                break;
-            }
-
-            if (!_world.InBounds(mapX, mapY, mapZ))
-            {
-                continue;
-            }
-
-            BlockType block = _world.GetBlock(mapX, mapY, mapZ);
-            if (block == BlockType.Air)
-            {
-                continue;
-            }
-
-            Vector3 hitPoint = origin + direction * traveled;
-            hit = new RaycastHit(new Int3(mapX, mapY, mapZ), face, block, hitPoint, traveled);
-            return true;
-        }
-
-        hit = default;
-        return false;
-    }
-
-    private static Vector2 ComputeFaceUV(BlockFace face, Vector3 local)
-    {
-        local = new Vector3(
-            Math.Clamp(local.X, 0f, 0.999f),
-            Math.Clamp(local.Y, 0f, 0.999f),
-            Math.Clamp(local.Z, 0f, 0.999f));
-
-        return face switch
-        {
-            BlockFace.PositiveX => new Vector2(1f - local.Z, 1f - local.Y),
-            BlockFace.NegativeX => new Vector2(local.Z, 1f - local.Y),
-            BlockFace.PositiveZ => new Vector2(local.X, 1f - local.Y),
-            BlockFace.NegativeZ => new Vector2(1f - local.X, 1f - local.Y),
-            BlockFace.PositiveY => new Vector2(local.X, local.Z),
-            BlockFace.NegativeY => new Vector2(local.X, 1f - local.Z),
-            _ => new Vector2(local.X, local.Y)
-        };
-    }
-
-    private static float GetFaceLight(BlockFace face)
-    {
-        return face switch
-        {
-            BlockFace.PositiveY => 1.0f,
-            BlockFace.NegativeY => 0.55f,
-            BlockFace.PositiveX => 0.9f,
-            BlockFace.NegativeX => 0.75f,
-            BlockFace.PositiveZ => 0.85f,
-            BlockFace.NegativeZ => 0.7f,
-            _ => 1f
-        };
-    }
-
-    private static Vector4 ApplyFog(Vector4 color, float distance)
-    {
-        float fogStart = 45f;
-        float fogEnd = 90f;
-        if (distance <= fogStart)
-        {
-            return color;
-        }
-
-        float fogFactor = Math.Clamp((distance - fogStart) / (fogEnd - fogStart), 0f, 1f);
-        var fogColor = new Vector3(0.72f, 0.84f, 0.96f);
-        var rgb = new Vector3(color.X, color.Y, color.Z);
-        rgb = Vector3.Lerp(rgb, fogColor, fogFactor);
-        return new Vector4(rgb, color.W);
-    }
-
-    private static Vector3 SampleSky(Vector3 direction)
-    {
-        direction = Vector3.Normalize(direction);
-        float t = Math.Clamp(direction.Y * 0.5f + 0.5f, 0f, 1f);
-        Vector3 horizon = new(0.78f, 0.87f, 0.95f);
-        Vector3 zenith = new(0.18f, 0.32f, 0.58f);
-        Vector3 sky = Vector3.Lerp(horizon, zenith, t);
-
-        Vector3 sunDirection = Vector3.Normalize(new Vector3(-0.35f, 0.88f, 0.25f));
-        float sunFactor = MathF.Max(0f, Vector3.Dot(direction, sunDirection));
-        float sunGlow = MathF.Pow(sunFactor, 32f) * 0.35f;
-        sky += new Vector3(1f, 0.93f, 0.78f) * sunGlow;
-
-        return Vector3.Clamp(sky, Vector3.Zero, Vector3.One);
-    }
-
-    private static unsafe void WritePixel(byte* row, int x, Vector4 color)
-    {
-        float alpha = Math.Clamp(color.W, 0f, 1f);
-        Vector3 rgb = new(color.X, color.Y, color.Z);
-        rgb = Vector3.Clamp(rgb, Vector3.Zero, Vector3.One);
-        Vector3 premul = rgb * alpha;
-
-        int index = x * 4;
-        row[index + 0] = (byte)(premul.Z * 255f);
-        row[index + 1] = (byte)(premul.Y * 255f);
-        row[index + 2] = (byte)(premul.X * 255f);
-        row[index + 3] = (byte)(alpha * 255f);
-    }
-
-    private void EnsureFramebuffer()
-    {
-        if (_framebuffer is null || _framebuffer.PixelSize != _renderSize)
-        {
-            _framebuffer?.Dispose();
-            _framebuffer = new WriteableBitmap(_renderSize, new Avalonia.Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
-        }
+        var result = _rayTracer.Render(_world, _player, _textures, _framebuffer);
+        _framebuffer = result.Framebuffer;
+        _camera = result.Camera;
+        _hasCamera = true;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -1202,45 +839,24 @@ public sealed class GameControl : Control
 
     private void DrawBlockHighlight(DrawingContext context)
     {
-        if (!_hasCurrentHit || Bounds.Width <= 0 || Bounds.Height <= 0)
+        if (!_hasCurrentHit || !_hasCamera)
         {
             return;
         }
 
-        Span<Vector3> corners = stackalloc Vector3[4];
-        GetFaceCorners(_currentHit.Block, _currentHit.Face, corners);
-
-        var projected = new Point[4];
-        for (int i = 0; i < 4; i++)
+        var viewport = Bounds.Size;
+        if (viewport.Width <= 0 || viewport.Height <= 0)
         {
-            if (!TryProject(corners[i], out var screenPoint))
-            {
-                return;
-            }
-
-            projected[i] = screenPoint;
+            return;
         }
 
-        var geometry = new StreamGeometry();
-        using (var ctx = geometry.Open())
-        {
-            ctx.BeginFigure(projected[0], true);
-            ctx.LineTo(projected[1]);
-            ctx.LineTo(projected[2]);
-            ctx.LineTo(projected[3]);
-            ctx.EndFigure(true);
-        }
-        var fill = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-        var pen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)), Math.Max(1.5, Bounds.Width * 0.002));
-        context.DrawGeometry(fill, pen, geometry);
+        var projector = new VoxelProjector(_camera, _player.EyePosition, viewport);
+        VoxelOverlayRenderer.DrawSelection(context, projector, _currentHit);
     }
 
     private void DrawCrosshair(DrawingContext context)
     {
-        var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
-        var pen = new Pen(Brushes.White, 1);
-        context.DrawLine(pen, center + new Avalonia.Vector(-9, 0), center + new Avalonia.Vector(9, 0));
-        context.DrawLine(pen, center + new Avalonia.Vector(0, -9), center + new Avalonia.Vector(0, 9));
+        VoxelOverlayRenderer.DrawCrosshair(context, Bounds.Size);
     }
 
     private void DrawHud(DrawingContext context)
@@ -1499,94 +1115,6 @@ public sealed class GameControl : Control
         if (_mouseLookEnabled)
         {
             SetMouseLook(false);
-        }
-    }
-
-    private bool TryProject(Vector3 worldPoint, out Point projected)
-    {
-        projected = default;
-
-        if (Bounds.Width <= 0 || Bounds.Height <= 0)
-        {
-            return false;
-        }
-
-        Vector3 eye = _player.EyePosition;
-        Vector3 toPoint = worldPoint - eye;
-
-        float x = Vector3.Dot(toPoint, _cameraRight);
-        float y = Vector3.Dot(toPoint, _cameraUp);
-        float z = Vector3.Dot(toPoint, _cameraForward);
-
-        if (z <= 0.05f)
-        {
-            return false;
-        }
-
-        float ndcX = x / (z * _cameraTanHalfFov * _cameraAspect);
-        float ndcY = y / (z * _cameraTanHalfFov);
-
-        double screenX = (ndcX + 1d) * 0.5d * Bounds.Width;
-        double screenY = (1d - ndcY) * 0.5d * Bounds.Height;
-
-        if (!double.IsFinite(screenX) || !double.IsFinite(screenY))
-        {
-            return false;
-        }
-
-        projected = new Point(screenX, screenY);
-        return true;
-    }
-
-    private static void GetFaceCorners(Int3 block, BlockFace face, Span<Vector3> destination)
-    {
-        Vector3 min = block.ToVector3();
-        Vector3 max = min + Vector3.One;
-
-        switch (face)
-        {
-            case BlockFace.PositiveX:
-                destination[0] = new Vector3(max.X, min.Y, min.Z);
-                destination[1] = new Vector3(max.X, max.Y, min.Z);
-                destination[2] = new Vector3(max.X, max.Y, max.Z);
-                destination[3] = new Vector3(max.X, min.Y, max.Z);
-                break;
-            case BlockFace.NegativeX:
-                destination[0] = new Vector3(min.X, min.Y, min.Z);
-                destination[1] = new Vector3(min.X, min.Y, max.Z);
-                destination[2] = new Vector3(min.X, max.Y, max.Z);
-                destination[3] = new Vector3(min.X, max.Y, min.Z);
-                break;
-            case BlockFace.PositiveY:
-                destination[0] = new Vector3(min.X, max.Y, min.Z);
-                destination[1] = new Vector3(max.X, max.Y, min.Z);
-                destination[2] = new Vector3(max.X, max.Y, max.Z);
-                destination[3] = new Vector3(min.X, max.Y, max.Z);
-                break;
-            case BlockFace.NegativeY:
-                destination[0] = new Vector3(min.X, min.Y, min.Z);
-                destination[1] = new Vector3(min.X, min.Y, max.Z);
-                destination[2] = new Vector3(max.X, min.Y, max.Z);
-                destination[3] = new Vector3(max.X, min.Y, min.Z);
-                break;
-            case BlockFace.PositiveZ:
-                destination[0] = new Vector3(min.X, min.Y, max.Z);
-                destination[1] = new Vector3(min.X, max.Y, max.Z);
-                destination[2] = new Vector3(max.X, max.Y, max.Z);
-                destination[3] = new Vector3(max.X, min.Y, max.Z);
-                break;
-            case BlockFace.NegativeZ:
-                destination[0] = new Vector3(min.X, min.Y, min.Z);
-                destination[1] = new Vector3(max.X, min.Y, min.Z);
-                destination[2] = new Vector3(max.X, max.Y, min.Z);
-                destination[3] = new Vector3(min.X, max.Y, min.Z);
-                break;
-            default:
-                destination[0] = min;
-                destination[1] = min;
-                destination[2] = min;
-                destination[3] = min;
-                break;
         }
     }
 }
