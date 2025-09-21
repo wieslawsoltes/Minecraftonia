@@ -34,8 +34,21 @@ public sealed class Player
     {
         get
         {
-            float yawRad = Yaw * (MathF.PI / 180f);
-            return Vector3.Normalize(new Vector3(MathF.Cos(yawRad), 0f, -MathF.Sin(yawRad)));
+            Vector3 forward = Forward;
+            Vector3 horizontalForward = new(forward.X, 0f, forward.Z);
+            if (horizontalForward.LengthSquared() < 0.0001f)
+            {
+                return Vector3.UnitX;
+            }
+
+            horizontalForward = Vector3.Normalize(horizontalForward);
+            Vector3 right = new Vector3(horizontalForward.Z, 0f, -horizontalForward.X);
+            if (right.LengthSquared() < 0.0001f)
+            {
+                return Vector3.UnitX;
+            }
+
+            return Vector3.Normalize(right);
         }
     }
 

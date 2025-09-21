@@ -54,13 +54,17 @@ public sealed class GameControl : Control
     private float _pendingMouseDeltaX;
     private float _pendingMouseDeltaY;
     private Point? _lastPointerPosition;
-    private float _mouseSensitivity = 0.18f;
+    private float _mouseSensitivity = 0.32f;
     private bool _invertMouseX = true;
     private bool _invertMouseY;
 
     private readonly HashSet<PhysicalKey> _physicalKeysDown = new();
     private readonly HashSet<PhysicalKey> _physicalKeysPressed = new();
     private TopLevel? _topLevel;
+
+    private Vector3 _debugWishDir = Vector3.Zero;
+    private Vector3 _debugVelocity = Vector3.Zero;
+    private bool _debugGrounded;
 
     private readonly BlockType[] _palette =
     {
@@ -241,7 +245,7 @@ public sealed class GameControl : Control
         Vector3 forward = _player.Forward;
         Vector3 right = _player.Right;
         Vector3 forwardPlane = new(forward.X, 0f, forward.Z);
-        Vector3 rightPlane = new(right.X, 0f, right.Z);
+        Vector3 rightPlane = new(-right.X, 0f, -right.Z);
 
         if (forwardPlane.LengthSquared() < 0.0001f)
         {
@@ -288,6 +292,8 @@ public sealed class GameControl : Control
             wishDir = Vector3.Normalize(wishDir);
         }
 
+        _debugWishDir = wishDir;
+
         bool isShiftDown =
             IsMovementKeyDown(Key.LeftShift, Key.RightShift) ||
             IsMovementPhysicalKeyDown(PhysicalKey.ShiftLeft, PhysicalKey.ShiftRight);
@@ -312,6 +318,9 @@ public sealed class GameControl : Control
         _player.Position = position;
         _player.Velocity = velocity;
         _player.IsOnGround = grounded;
+
+        _debugVelocity = velocity;
+        _debugGrounded = grounded;
 
         float minY = 1.0f;
         float maxY = _world.Height - 2f;
@@ -452,6 +461,8 @@ public sealed class GameControl : Control
             float step = MathF.Min(remaining, stepSize);
             float delta = step * sign;
 
+            Vector3 originalPosition = position;
+
             switch (axis)
             {
                 case 0:
@@ -467,20 +478,26 @@ public sealed class GameControl : Control
 
             if (Collides(position))
             {
+                if (axis != 1 && TryStepUp(ref position, axis, delta, originalPosition))
+                {
+                    remaining -= step;
+                    continue;
+                }
+
                 switch (axis)
                 {
                     case 0:
-                        position = new Vector3(position.X - delta, position.Y, position.Z);
+                        position = originalPosition;
                         break;
                     case 1:
-                        position = new Vector3(position.X, position.Y - delta, position.Z);
+                        position = originalPosition;
                         if (sign < 0f)
                         {
                             grounded = true;
                         }
                         break;
                     case 2:
-                        position = new Vector3(position.X, position.Y, position.Z - delta);
+                        position = originalPosition;
                         break;
                 }
 
@@ -492,6 +509,32 @@ public sealed class GameControl : Control
         }
 
         return grounded;
+    }
+
+    private bool TryStepUp(ref Vector3 position, int axis, float delta, Vector3 originalPosition)
+    {
+        const float stepHeight = 0.6f;
+        Vector3 stepped = originalPosition + new Vector3(0f, stepHeight, 0f);
+
+        if (Collides(stepped))
+        {
+            return false;
+        }
+
+        Vector3 target = axis switch
+        {
+            0 => new Vector3(stepped.X + delta, stepped.Y, stepped.Z),
+            2 => new Vector3(stepped.X, stepped.Y, stepped.Z + delta),
+            _ => stepped
+        };
+
+        if (Collides(target))
+        {
+            return false;
+        }
+
+        position = target;
+        return true;
     }
 
     private bool Collides(Vector3 position)
@@ -1251,7 +1294,24 @@ public sealed class GameControl : Control
             _hudTypeface,
             13,
             Brushes.White);
-        invertLayout.Draw(context, new Point(padding, yOffset + 4 + settingsLayout.Height + 2));
+        double debugStartY = yOffset + 4 + settingsLayout.Height + 2;
+        invertLayout.Draw(context, new Point(padding, debugStartY));
+
+        debugStartY += invertLayout.Height + 2;
+        var movementDebugLayout = new TextLayout(
+            $"WishDir: {_debugWishDir.X,5:0.00},{_debugWishDir.Y,5:0.00},{_debugWishDir.Z,5:0.00}",
+            _hudTypeface,
+            12,
+            Brushes.LightGray);
+        movementDebugLayout.Draw(context, new Point(padding, debugStartY));
+
+        debugStartY += movementDebugLayout.Height + 2;
+        var velocityDebugLayout = new TextLayout(
+            $"Velocity: {_debugVelocity.X,5:0.00},{_debugVelocity.Y,5:0.00},{_debugVelocity.Z,5:0.00}  Grounded: {_debugGrounded}",
+            _hudTypeface,
+            12,
+            Brushes.LightGray);
+        velocityDebugLayout.Draw(context, new Point(padding, debugStartY));
 
         if (_hasCurrentHit)
         {
