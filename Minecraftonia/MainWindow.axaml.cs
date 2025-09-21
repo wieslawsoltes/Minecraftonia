@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Minecraftonia.App;
+namespace Minecraftonia;
 
 public partial class MainWindow : Window
 {

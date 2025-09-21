@@ -12,7 +12,7 @@ using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
 using Avalonia.Threading;
 
-namespace Minecraftonia.App.Game;
+namespace Minecraftonia.Game;
 
 public sealed class GameControl : Control
 {
@@ -54,6 +54,7 @@ public sealed class GameControl : Control
     private float _pendingMouseDeltaX;
     private float _pendingMouseDeltaY;
     private Point? _lastPointerPosition;
+    private bool _ignoreWarpPointerMove;
     private float _mouseSensitivity = 0.32f;
     private bool _invertMouseX = true;
     private bool _invertMouseY;
@@ -1384,6 +1385,7 @@ public sealed class GameControl : Control
             }
 
             Focus();
+            WarpPointerToCenter();
         }
         else
         {
@@ -1391,6 +1393,7 @@ public sealed class GameControl : Control
             _pendingMouseDeltaX = 0f;
             _pendingMouseDeltaY = 0f;
             _lastPointerPosition = null;
+            _ignoreWarpPointerMove = false;
 
             if (_capturedPointer is not null)
             {
@@ -1404,6 +1407,33 @@ public sealed class GameControl : Control
             }
 
             _previousCursor = null;
+        }
+    }
+
+    private void WarpPointerToCenter(bool allowRetry = true)
+    {
+        if (!_mouseLookEnabled || _topLevel is null)
+        {
+            return;
+        }
+
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            if (allowRetry)
+            {
+                Dispatcher.UIThread.Post(() => WarpPointerToCenter(false), DispatcherPriority.Input);
+            }
+
+            return;
+        }
+
+        var center = new Point(Bounds.Width / 2d, Bounds.Height / 2d);
+        var screenPoint = _topLevel.PointToScreen(center);
+
+        if (MouseCursorUtils.TryWarpPointer(screenPoint))
+        {
+            _ignoreWarpPointerMove = true;
+            _lastPointerPosition = center;
         }
     }
 
@@ -1425,6 +1455,14 @@ public sealed class GameControl : Control
         }
 
         var position = e.GetPosition(this);
+
+        if (_ignoreWarpPointerMove)
+        {
+            _ignoreWarpPointerMove = false;
+            _lastPointerPosition = position;
+            return;
+        }
+
         if (_lastPointerPosition.HasValue)
         {
             Avalonia.Vector delta = position - _lastPointerPosition.Value;
@@ -1433,6 +1471,7 @@ public sealed class GameControl : Control
         }
 
         _lastPointerPosition = position;
+        WarpPointerToCenter();
     }
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
@@ -1443,11 +1482,11 @@ public sealed class GameControl : Control
         {
             _capturedPointer = null;
             _lastPointerPosition = null;
-            if (_mouseLookEnabled)
-            {
-                _requestPointerCapture = true;
-            }
+        if (_mouseLookEnabled)
+        {
+            _requestPointerCapture = true;
         }
+    }
     }
 
     protected override void OnLostFocus(RoutedEventArgs e)

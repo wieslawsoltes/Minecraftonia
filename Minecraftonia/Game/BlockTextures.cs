@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 
-namespace Minecraftonia.App.Game;
+namespace Minecraftonia.Game;
 
 public sealed class BlockTextures
 {
