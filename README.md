@@ -66,15 +66,15 @@ To cut a release, create and push a semver tag (e.g., `git tag v0.3.0 && git pus
 
 | Action | Default | Notes |
 | --- | --- | --- |
-| Move | `W A S D` | Arrow keys also rotate the camera in keyboard-only mode |
-| Sprint | `Shift` | Works with both left and right shift |
+| Move | `W A S D` | Arrow keys rotate the camera; `Q`/`E` nudge yaw without the mouse |
+| Sprint | `Shift` | Hold while moving to increase travel speed |
 | Jump | `Space` | Requires ground contact |
-| Look | Mouse | `F1` toggles relative pointer capture |
-| Break Block | Left mouse button | Ray traced hit detection |
-| Place Block | Right mouse button | Places currently selected block |
-| Toggle Mouse Capture | `F1` / `Esc` | `Esc` releases pointer when captured |
+| Look | Mouse | `F1` toggles pointer capture; `Esc` releases capture |
+| Break Block | Left mouse button | Uses the current ray-traced hit |
+| Place Block | Right mouse button | Places the selected hotbar block |
+| Pause/Menu | `Esc` | Opens the in-game menu overlay |
 | Invert X / Y | `F2` / `F3` | Toggles independently |
-| Sensitivity | `+` / `-` | Adjusts mouse look multiplier |
+| Sensitivity | `+` / `-` | Adjusts mouse-look multiplier |
 | Hotbar | `1`-`7`, `Tab`, scroll wheel | Scroll cycles palette |
 
 Pause the game with `Esc`, then resume, save/exit, or return to the main menu.
@@ -89,6 +89,50 @@ Minecraftonia.sln
 ├── Minecraftonia.VoxelRendering/ # Ray tracer, texture atlas, overlay helpers
 └── publish/                   # Optional self-contained publish output
 ```
+
+## Architecture & Algorithms
+
+### `Minecraftonia` (Desktop UI frontend)
+
+- **Avalonia navigation shell** – Hosts the `GameControl` custom control and overlays menus rendered via XAML. Menu state is driven from `MainWindow.axaml.cs`, which responds to pause events and manages new/load/save flows.
+- **Pointer capture management** – Relies on `GameControl` APIs to toggle raw mouse capture, warp the pointer to the window center, and react to `Esc`/`F1` toggles, keeping UI and camera motion in sync.
+- **Dispatcher-driven render loop** – `GameControl` uses an Avalonia `DispatcherTimer` firing at ~60 Hz to drive simulation ticks and trigger `InvalidateVisual()` for frame updates.
+
+### `Minecraftonia.Game`
+
+- **`MinecraftoniaGame` orchestration** – Central façade coordinating player input, physics integration, voxel ray casting, and block interaction. It houses palette selection, terrain collision resolution, and ray-hit processing. Construction overloading allows deserialising saved worlds via `GameSaveData`.
+- **Simulation algorithms**
+  - *Movement integration* – Computes planar wish direction (normalized `forward`/`right` vectors) and applies acceleration with sprint scaling. Gravity and jump impulses are applied each tick, clamping vertical velocity and feeding through `MoveWithCollisions`.
+  - *Collision resolution* – Axis-separated swept collision using `MoveAxis`: translates along each axis independently, tests for intersections via `Collides`, and attempts step-up displacement before resolving penetration. This avoids tunnelling while staying lightweight.
+  - *Ray selection* – Invokes `VoxelRayTracer` to raycast from the player eye through the camera frustum and retains the nearest solid hit for block breaking/placing.
+- **Save system** – `GameSaveData`/`PlayerSaveData` define the persisted schema. `GameSaveService` serialises to JSON, storing world dimensions, player kinematics, palette index, and flattened block arrays. Saves load into `MinecraftoniaVoxelWorld` through span-based constructors for efficient block hydration.
+- **World generation** – `MinecraftoniaVoxelWorld` seeds a deterministic `Random` instance and runs multi-phase terrain generation:
+  - *Heightmap synthesis* via combined sine-based noise (`scale1`, `scale2`, ridge modulation) to output column heights.
+  - *Surface stratification* layering grass/dirt/stone and injecting sand edges near water level.
+  - *Hydration* fills below waterline with water blocks.
+  - *Cave carving* traces randomised tunnels with spherical excavation, altering blocks to air.
+  - *Surface decoration* sprinkles leaves/wood features and probabilistic tree planting using helper functions (`FindSurfaceY`, `CreateTree`).
+
+### `Minecraftonia.VoxelEngine`
+
+- **`VoxelWorld<TBlock>` base** – 3D array-backed voxel storage with bounds checks, used by game-specific worlds. Provides generic block getters/setters and bulk fill. Algorithms target cache locality by using `[x,y,z]` indexing without chunk partitioning.
+- **`Player` physics struct** – Holds positional vectors, yaw/pitch, velocity, ground state, and derived `Forward`/`Right` direction accessors (calculated lazily using trig). Used by physics and rendering to compute camera orientation.
+- **`BlockFace` helpers** – Defines adjacency vectors and metadata for faces, enabling overlay rendering (e.g., selection boxes) or adjacency traversal.
+
+### `Minecraftonia.VoxelRendering`
+
+- **Voxel ray tracer** – `VoxelRayTracer<TBlock>` performs grid traversal using 3D DDA (Digital Differential Analyzer). It steps through voxels along the ray direction, querying `IsSolid`/`IsTransparent` delegates supplied by `MinecraftoniaGame` to determine intersections and shading behaviour.
+- **Camera projection** – Builds `VoxelCamera` state (position, direction, FOV) used for deducing per-pixel ray directions and projecting world coordinates into screen space for overlays.
+- **Texture atlas** – `BlockTextures` composes a lookup of UV rectangles per `BlockType` enabling the ray tracer to fetch colours for each face.
+- **Overlay rendering** – Utilities (e.g., crosshair, block highlight) project voxel corners through the camera and draw 2D primitives over the rendered framebuffer via Avalonia drawing APIs.
+
+### Data flow summary
+
+1. `GameControl` gathers input (keyboard, mouse, pointer delta) each frame, marshals it into `GameInputState`, and calls `_game.Update`.
+2. `MinecraftoniaGame` applies look, movement, interactions, and updates the `MinecraftoniaVoxelWorld` accordingly.
+3. `VoxelRayTracer` renders the world into a `WriteableBitmap` which `GameControl.Render` blits to the Avalonia surface.
+4. HUD overlays draw palette status, FPS, crosshair, and block outlines on top of the framebuffer.
+5. Menu actions invoke `StartNewGame`, `LoadGame`, `CreateSaveData`, or pointer capture toggles, coordinating via dispatcher calls to maintain smooth focus changes.
 
 ## Save Files
 
