@@ -31,6 +31,37 @@ dotnet run --project Minecraftonia
 
 The application launches directly into the main menu. Use the pointer to navigate or the keyboard (`Enter`/`Space`) to activate focused buttons.
 
+## Build & Publish
+
+### Local release publish
+
+Minecraftonia ships as a self-contained desktop app for each OS. To publish locally:
+
+```bash
+# Linux x64
+dotnet publish Minecraftonia/Minecraftonia.csproj -c Release -r linux-x64 --self-contained true -o publish/linux-x64
+
+# macOS Apple Silicon
+dotnet publish Minecraftonia/Minecraftonia.csproj -c Release -r osx-arm64 --self-contained true -o publish/osx-arm64
+
+# Windows x64
+dotnet publish Minecraftonia/Minecraftonia.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
+```
+
+Each command creates an OS-specific directory under `publish/` ready to zip and distribute.
+
+### GitHub Actions workflow
+
+The repository provides a cross-platform CI/CD pipeline in [`.github/workflows/build-and-release.yml`](.github/workflows/build-and-release.yml):
+
+1. Triggered on pushes to `main`, pull requests, and tags prefixed with `v`.
+2. Builds `linux-x64`, `osx-arm64`, and `win-x64` self-contained binaries using .NET 9 (`dotnet publish ... --self-contained true`).
+3. Strips debug symbols for smaller artifacts and archives each build (`zip`/`Compress-Archive`).
+4. Uploads zipped artifacts for each runtime identifier.
+5. On tagged commits, creates a GitHub Release and attaches the platform archives automatically.
+
+To cut a release, create and push a semver tag (e.g., `git tag v0.3.0 && git push origin v0.3.0`). The action produces ready-to-download archives under the new release.
+
 ## Gameplay Controls
 
 | Action | Default | Notes |
