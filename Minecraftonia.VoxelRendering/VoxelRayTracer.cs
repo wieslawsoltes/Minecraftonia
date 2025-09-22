@@ -21,6 +21,13 @@ public sealed class VoxelRayTracer<TBlock>
     private readonly float _fogEnd;
     private readonly Vector3 _fogColor;
     private readonly float _fogInvRange;
+    private readonly int _samplesPerPixel;
+    private readonly Vector2[] _sampleOffsets;
+    private readonly bool _applyFxaa;
+    private readonly float _fxaaContrastThreshold;
+    private readonly float _fxaaRelativeThreshold;
+    private readonly bool _applySharpen;
+    private readonly float _sharpenAmount;
     private readonly ParallelOptions _parallelOptions;
 
     public VoxelRayTracer(
@@ -28,6 +35,12 @@ public sealed class VoxelRayTracer<TBlock>
         float fieldOfViewDegrees,
         Func<TBlock, bool> isSolid,
         Func<TBlock, bool> isEmpty,
+        int samplesPerPixel = 1,
+        bool enableFxaa = true,
+        float fxaaContrastThreshold = 0.0312f,
+        float fxaaRelativeThreshold = 0.125f,
+        bool enableSharpen = true,
+        float sharpenAmount = 0.18f,
         float fogStart = 45f,
         float fogEnd = 90f,
         Vector3? fogColor = null)
@@ -41,6 +54,13 @@ public sealed class VoxelRayTracer<TBlock>
         _fogColor = fogColor ?? new Vector3(0.72f, 0.84f, 0.96f);
         float range = Math.Max(_fogEnd - _fogStart, 0.0001f);
         _fogInvRange = 1f / range;
+        _samplesPerPixel = Math.Max(1, samplesPerPixel);
+        _sampleOffsets = CreateSamplePattern(_samplesPerPixel);
+        _applyFxaa = enableFxaa;
+        _fxaaContrastThreshold = fxaaContrastThreshold;
+        _fxaaRelativeThreshold = fxaaRelativeThreshold;
+        _applySharpen = enableSharpen;
+        _sharpenAmount = Math.Clamp(sharpenAmount, 0f, 1f);
         _parallelOptions = new ParallelOptions
         {
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
@@ -98,33 +118,65 @@ public sealed class VoxelRayTracer<TBlock>
             float invWidth = 1f / width;
             float invHeight = 1f / height;
 
+            Vector4 SamplePixel(float samplePx, float samplePy)
+            {
+                float ndcX = samplePx * 2f - 1f;
+                float ndcYLocal = 1f - samplePy * 2f;
+                Vector3 dir = forward + ndcX * basisX + ndcYLocal * basisY;
+                float lenSq = dir.X * dir.X + dir.Y * dir.Y + dir.Z * dir.Z;
+                if (lenSq > 1e-12f)
+                {
+                    float invLen = MathF.ReciprocalSqrtEstimate(lenSq);
+                    dir *= invLen;
+                }
+                else
+                {
+                    dir = forward;
+                }
+
+                Vector4 sample = TraceRay(world, eye, dir, materials, out float distance);
+                return ApplyFog(sample, distance);
+            }
+
             Parallel.For(0, height, _parallelOptions, y =>
             {
                 byte* row = buffer + y * stride;
-                float py = (y + 0.5f) * invHeight;
-                float ndcY = 1f - py * 2f;
 
                 for (int x = 0; x < width; x++)
                 {
-                    float px = (x + 0.5f) * invWidth;
-                    float ndcX = px * 2f - 1f;
-                    Vector3 dir = forward + ndcX * basisX + ndcY * basisY;
-                    float lenSq = dir.X * dir.X + dir.Y * dir.Y + dir.Z * dir.Z;
-                    if (lenSq > 1e-12f)
+                    Vector4 firstSample = SamplePixel((x + _sampleOffsets[0].X) * invWidth, (y + _sampleOffsets[0].Y) * invHeight);
+                    Vector3 firstColor = new(firstSample.X, firstSample.Y, firstSample.Z);
+                    float firstAlpha = firstSample.W;
+
+                    Vector3 colorSum = firstColor;
+                    float alphaSum = firstAlpha;
+                    int sampleCount = 1;
+
+                    for (int i = 1; i < _samplesPerPixel && i < _sampleOffsets.Length; i++)
                     {
-                        float invLen = MathF.ReciprocalSqrtEstimate(lenSq);
-                        dir *= invLen;
-                    }
-                    else
-                    {
-                        dir = forward;
+                        var offset = _sampleOffsets[i];
+                        Vector4 sample = SamplePixel((x + offset.X) * invWidth, (y + offset.Y) * invHeight);
+                        Vector3 sampleColor = new(sample.X, sample.Y, sample.Z);
+                        colorSum += sampleColor;
+                        alphaSum += sample.W;
+                        sampleCount++;
+
+                        if (Vector3.DistanceSquared(sampleColor, firstColor) < 0.0004f && Math.Abs(sample.W - firstAlpha) < 0.01f)
+                        {
+                            break;
+                        }
                     }
 
-                    Vector4 sample = TraceRay(world, eye, dir, materials, out float distance);
-                    sample = ApplyFog(sample, distance);
-                    WritePixel(row, x, sample);
+                    float invSamples = 1f / sampleCount;
+                    Vector4 averaged = new Vector4(colorSum * invSamples, alphaSum * invSamples);
+                    WritePixel(row, x, averaged);
                 }
             });
+
+            if (_applyFxaa)
+            {
+                ApplyFxaaAndSharpenParallel(buffer, stride, width, height);
+            }
         }
 
         return new VoxelRenderResult<TBlock>(fb, camera);
@@ -365,6 +417,165 @@ public sealed class VoxelRayTracer<TBlock>
         var rgb = new Vector3(color.X, color.Y, color.Z);
         rgb = Vector3.Lerp(rgb, _fogColor, fogFactor);
         return new Vector4(rgb, color.W);
+    }
+
+    private static Vector2[] CreateSamplePattern(int samples)
+    {
+        var offsets = new Vector2[samples];
+        offsets[0] = new Vector2(0.5f, 0.5f);
+
+        if (samples == 1)
+        {
+            return offsets;
+        }
+
+        int grid = (int)Math.Ceiling(MathF.Sqrt(samples));
+        float step = 1f / grid;
+        float half = step / 2f;
+
+        int index = 1;
+        for (int gy = 0; gy < grid && index < samples; gy++)
+        {
+            for (int gx = 0; gx < grid && index < samples; gx++)
+            {
+                float ox = half + gx * step;
+                float oy = half + gy * step;
+                if (Math.Abs(ox - 0.5f) < 0.001f && Math.Abs(oy - 0.5f) < 0.001f)
+                {
+                    continue;
+                }
+
+                offsets[index++] = new Vector2(ox, oy);
+            }
+        }
+
+        // Fallback in case grid skips some slots due to center filtering.
+        while (index < samples)
+        {
+            offsets[index] = new Vector2(0.5f, 0.5f);
+            index++;
+        }
+
+        return offsets;
+    }
+
+    private unsafe void ApplyFxaaAndSharpenParallel(byte* buffer, int stride, int width, int height)
+    {
+        if (width < 3 || height < 3)
+        {
+            return;
+        }
+        int totalBytes = stride * height;
+        var srcBuffer = new byte[totalBytes];
+        new Span<byte>(buffer, totalBytes).CopyTo(srcBuffer);
+
+        Parallel.For(0, height, _parallelOptions, y =>
+        {
+            unsafe
+            {
+                fixed (byte* srcPtr = srcBuffer)
+                {
+                    byte* srcRow = srcPtr + y * stride;
+                    byte* dstRow = buffer + y * stride;
+
+                    if (y == 0 || y == height - 1)
+                    {
+                        Buffer.MemoryCopy(srcRow, dstRow, stride, width * 4);
+                        return;
+                    }
+
+                    byte* srcPrev = srcRow - stride;
+                    byte* srcNext = srcRow + stride;
+
+                    for (int x = 0; x < width; x++)
+                    {
+                        byte* srcPixel = srcRow + x * 4;
+                        byte* dstPixel = dstRow + x * 4;
+
+                        if (x == 0 || x == width - 1)
+                        {
+                            CopyPixel(dstPixel, srcPixel);
+                            continue;
+                        }
+
+                        float lumaCenter = ComputeLuma(srcPixel);
+                        float lumaLeft = ComputeLuma(srcRow + (x - 1) * 4);
+                        float lumaRight = ComputeLuma(srcRow + (x + 1) * 4);
+                        float lumaUp = ComputeLuma(srcPrev + x * 4);
+                        float lumaDown = ComputeLuma(srcNext + x * 4);
+
+                        float lumaMin = MathF.Min(lumaCenter, MathF.Min(MathF.Min(lumaLeft, lumaRight), MathF.Min(lumaUp, lumaDown)));
+                        float lumaMax = MathF.Max(lumaCenter, MathF.Max(MathF.Max(lumaLeft, lumaRight), MathF.Max(lumaUp, lumaDown)));
+                        float contrast = lumaMax - lumaMin;
+                        float threshold = Math.Max(_fxaaContrastThreshold, lumaMax * _fxaaRelativeThreshold);
+
+                        if (contrast < threshold)
+                        {
+                            CopyPixel(dstPixel, srcPixel);
+                            continue;
+                        }
+
+                        bool horizontal = Math.Abs(lumaLeft - lumaRight) >= Math.Abs(lumaUp - lumaDown);
+
+                        Vector3 colorMinus = horizontal ? LoadColor(srcPrev + x * 4) : LoadColor(srcRow + (x - 1) * 4);
+                        Vector3 colorPlus = horizontal ? LoadColor(srcNext + x * 4) : LoadColor(srcRow + (x + 1) * 4);
+                        float lumaMinus = horizontal ? ComputeLuma(srcPrev + x * 4) : lumaLeft;
+                        float lumaPlus = horizontal ? ComputeLuma(srcNext + x * 4) : lumaRight;
+
+                        Vector3 centerColor = LoadColor(srcPixel);
+                        Vector3 blended = (colorMinus + colorPlus) * 0.5f;
+
+                        float subpixelBlend = Math.Clamp((contrast - threshold) / (contrast + 1e-4f), 0f, 1f);
+                        float gradientBlend = Math.Clamp(Math.Abs(lumaMinus - lumaPlus), 0f, 1f);
+                        float blend = Math.Clamp(subpixelBlend * 0.65f + gradientBlend * 0.35f, 0f, 0.65f);
+
+                        Vector3 aaColor = Vector3.Lerp(centerColor, blended, blend);
+
+                        if (_applySharpen && _sharpenAmount > 0f)
+                        {
+                            Vector3 neighborAverage = (LoadColor(srcRow + (x - 1) * 4) +
+                                                       LoadColor(srcRow + (x + 1) * 4) +
+                                                       LoadColor(srcPrev + x * 4) +
+                                                       LoadColor(srcNext + x * 4)) * 0.25f;
+
+                            aaColor += (aaColor - neighborAverage) * _sharpenAmount;
+                        }
+
+                        StoreColor(dstPixel, aaColor, srcPixel[3]);
+                    }
+                }
+            }
+        });
+    }
+
+    private static unsafe void CopyPixel(byte* dst, byte* src)
+    {
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        dst[3] = src[3];
+    }
+
+    private static unsafe float ComputeLuma(byte* pixel)
+    {
+        const float r = 0.299f;
+        const float g = 0.587f;
+        const float b = 0.114f;
+        return (pixel[2] * r + pixel[1] * g + pixel[0] * b) / 255f;
+    }
+
+    private static unsafe Vector3 LoadColor(byte* pixel)
+    {
+        return new Vector3(pixel[2], pixel[1], pixel[0]);
+    }
+
+    private static unsafe void StoreColor(byte* pixel, Vector3 color, byte alpha)
+    {
+        color = Vector3.Clamp(color, Vector3.Zero, new Vector3(255f));
+        pixel[2] = (byte)color.X;
+        pixel[1] = (byte)color.Y;
+        pixel[0] = (byte)color.Z;
+        pixel[3] = alpha;
     }
 
     private static Vector3 SampleSky(Vector3 direction)

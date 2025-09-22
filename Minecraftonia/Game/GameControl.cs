@@ -87,7 +87,13 @@ public sealed class GameControl : Control
             _renderSize,
             FieldOfViewDegrees,
             block => block.IsSolid(),
-            block => block == BlockType.Air);
+            block => block == BlockType.Air,
+            samplesPerPixel: 1,
+            enableFxaa: true,
+            fxaaContrastThreshold: 0.0312f,
+            fxaaRelativeThreshold: 0.125f,
+            enableSharpen: true,
+            sharpenAmount: 0.18f);
 
     }
 

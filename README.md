@@ -96,35 +96,26 @@ Minecraftonia.sln
 
 - **Avalonia navigation shell** – Hosts the `GameControl` custom control and overlays menus rendered via XAML. Menu state is driven from `MainWindow.axaml.cs`, which responds to pause events and manages new/load/save flows.
 - **Pointer capture management** – Relies on `GameControl` APIs to toggle raw mouse capture, warp the pointer to the window center, and react to `Esc`/`F1` toggles, keeping UI and camera motion in sync.
-- **Dispatcher-driven render loop** – `GameControl` uses an Avalonia `DispatcherTimer` firing at ~60 Hz to drive simulation ticks and trigger `InvalidateVisual()` for frame updates.
+- **Compositor-synced render loop** – `GameControl` now advances simulation via `TopLevel.RequestAnimationFrame`. The loop self-reschedules only while attached to the visual tree, keeping update cadence tightly coupled to Avalonia’s compositor and avoiding timer drift.
 
 ### `Minecraftonia.Game`
 
-- **`MinecraftoniaGame` orchestration** – Central façade coordinating player input, physics integration, voxel ray casting, and block interaction. It houses palette selection, terrain collision resolution, and ray-hit processing. Construction overloading allows deserialising saved worlds via `GameSaveData`.
-- **Simulation algorithms**
-  - *Movement integration* – Computes planar wish direction (normalized `forward`/`right` vectors) and applies acceleration with sprint scaling. Gravity and jump impulses are applied each tick, clamping vertical velocity and feeding through `MoveWithCollisions`.
-  - *Collision resolution* – Axis-separated swept collision using `MoveAxis`: translates along each axis independently, tests for intersections via `Collides`, and attempts step-up displacement before resolving penetration. This avoids tunnelling while staying lightweight.
-  - *Ray selection* – Invokes `VoxelRayTracer` to raycast from the player eye through the camera frustum and retains the nearest solid hit for block breaking/placing.
-- **Save system** – `GameSaveData`/`PlayerSaveData` define the persisted schema. `GameSaveService` serialises to JSON, storing world dimensions, player kinematics, palette index, and flattened block arrays. Saves load into `MinecraftoniaVoxelWorld` through span-based constructors for efficient block hydration.
-- **World generation** – `MinecraftoniaVoxelWorld` seeds a deterministic `Random` instance and runs multi-phase terrain generation:
-  - *Heightmap synthesis* via combined sine-based noise (`scale1`, `scale2`, ridge modulation) to output column heights.
-  - *Surface stratification* layering grass/dirt/stone and injecting sand edges near water level.
-  - *Hydration* fills below waterline with water blocks.
-  - *Cave carving* traces randomised tunnels with spherical excavation, altering blocks to air.
-  - *Surface decoration* sprinkles leaves/wood features and probabilistic tree planting using helper functions (`FindSurfaceY`, `CreateTree`).
+- **`MinecraftoniaGame` orchestration** – Central façade coordinating player input, movement integration, voxel manipulation, and save/load. Capsule-vs-voxel sweeps handle collisions while the interaction system retains the closest ray hit for block breaking/placing. Chunk ranges are warmed before spawn to avoid hitching.
+- **Biome-aware world generation** – `MinecraftoniaVoxelWorld` drives a wave-function-collapse tile map spanning ocean, coast, plains, forest, hills, mountain, snow, and desert biomes. Tiles are smoothed, heightmaps generated with fractal value noise per-biome bounds, and columns built with stratified materials. The system guarantees a safe plains spawn, applies biome-specific foliage/tree densities, and adapts sand/stone/grass layering.
+- **Save system** – `GameSaveData`/`PlayerSaveData` capture world dimensions, chunk parameters, flattened block arrays, palette index, and player kinematics. Loading reconstructs chunks via span hydration to minimise allocations.
+- **Input pipeline** – `GameControl` converts keyboard/mouse/pointer events into `GameInputState` per frame and forwards it to `_game.Update`.
 
 ### `Minecraftonia.VoxelEngine`
 
-- **`VoxelWorld<TBlock>` base** – 3D array-backed voxel storage with bounds checks, used by game-specific worlds. Provides generic block getters/setters and bulk fill. Algorithms target cache locality by using `[x,y,z]` indexing without chunk partitioning.
-- **`Player` physics struct** – Holds positional vectors, yaw/pitch, velocity, ground state, and derived `Forward`/`Right` direction accessors (calculated lazily using trig). Used by physics and rendering to compute camera orientation.
-- **`BlockFace` helpers** – Defines adjacency vectors and metadata for faces, enabling overlay rendering (e.g., selection boxes) or adjacency traversal.
+- **Chunk-backed voxel store** – `VoxelWorld<TBlock>` maintains chunk dictionaries, but each chunk owns a contiguous block span. `BlockAccessCache` caches the current chunk/raw array so hot loops (ray tracing, serialisation) avoid repeated dictionary lookups.
+- **Occupancy tracking** – Chunks count solid blocks when hydrated or mutated, providing hooks for future culling/streaming heuristics.
+- **Player physics** – Movement solves planar wish directions, gravity, sprint, and jump. `MoveWithCollisions` performs axis-separated sweeps with step-up logic, delivering responsive first-person motion.
 
 ### `Minecraftonia.VoxelRendering`
 
-- **Voxel ray tracer** – `VoxelRayTracer<TBlock>` performs grid traversal using 3D DDA (Digital Differential Analyzer). It steps through voxels along the ray direction, querying `IsSolid`/`IsTransparent` delegates supplied by `MinecraftoniaGame` to determine intersections and shading behaviour.
-- **Camera projection** – Builds `VoxelCamera` state (position, direction, FOV) used for deducing per-pixel ray directions and projecting world coordinates into screen space for overlays.
-- **Texture atlas** – `BlockTextures` composes a lookup of UV rectangles per `BlockType` enabling the ray tracer to fetch colours for each face.
-- **Overlay rendering** – Utilities (e.g., crosshair, block highlight) project voxel corners through the camera and draw 2D primitives over the rendered framebuffer via Avalonia drawing APIs.
+- **Adaptive ray marcher** – `VoxelRayTracer` casts one centre ray per pixel, then conditionally adds stratified jitter samples when colour/alpha variance signals edge detail. DDA traversal caches chunk/local coordinates and runs per-scanline in parallel.
+- **Parallel FXAA + sharpening** – A multi-threaded post-process applies a refined FXAA pass using contrast-relative thresholds, followed by optional edge-aware sharpening. Flat regions remain untouched; edges are smoothed and re-sharpened without supersampling cost.
+- **HUD overlay** – `GameControl.Render` draws crosshair, FPS counter, hotbar selection, and block outlines over the framebuffer via Avalonia drawing primitives.
 
 ### Data flow summary
 
