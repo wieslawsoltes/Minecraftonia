@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -33,7 +34,7 @@ public sealed class GameControl : Control
     private readonly BlockTextures _textures;
     private readonly MinecraftoniaWorldConfig _worldConfig;
     private readonly int _defaultStreamingRadius;
-    private readonly VoxelRayTracer<BlockType> _rayTracer;
+    private VoxelRayTracer<BlockType> _rayTracer;
     private WriteableBitmap? _framebuffer;
     private readonly PixelSize _renderSize = new PixelSize(360, 202);
 
@@ -56,6 +57,10 @@ public sealed class GameControl : Control
     private float _mouseSensitivity = 0.32f;
     private bool _invertMouseX = true;
     private bool _invertMouseY;
+
+    private GlobalIlluminationSettings _giSettings;
+    private const int GiSamplesMin = 0;
+    private const int GiSamplesMax = 24;
 
     private readonly HashSet<PhysicalKey> _physicalKeysDown = new();
     private readonly HashSet<PhysicalKey> _physicalKeysPressed = new();
@@ -83,7 +88,22 @@ public sealed class GameControl : Control
             generationMode: TerrainGenerationMode.Legacy);
         _defaultStreamingRadius = CalculateStreamingRadius(_worldConfig);
         _game = new MinecraftoniaGame(_worldConfig, textures: _textures, chunkStreamingRadius: _defaultStreamingRadius);
-        _rayTracer = new VoxelRayTracer<BlockType>(
+        _giSettings = GlobalIlluminationSettings.Default with
+        {
+            DiffuseSampleCount = 5,
+            MaxDistance = 22f,
+            Strength = 1.05f,
+            AmbientLight = new Vector3(0.18f, 0.21f, 0.26f),
+            SunShadowSoftness = 0.58f
+        };
+
+        _rayTracer = CreateRayTracer(_giSettings);
+
+    }
+
+    private VoxelRayTracer<BlockType> CreateRayTracer(GlobalIlluminationSettings giSettings)
+    {
+        return new VoxelRayTracer<BlockType>(
             _renderSize,
             FieldOfViewDegrees,
             block => block.IsSolid(),
@@ -93,8 +113,8 @@ public sealed class GameControl : Control
             fxaaContrastThreshold: 0.0312f,
             fxaaRelativeThreshold: 0.125f,
             enableSharpen: true,
-            sharpenAmount: 0.18f);
-
+            sharpenAmount: 0.18f,
+            globalIllumination: giSettings);
     }
 
     private static int CalculateStreamingRadius(MinecraftoniaWorldConfig config)
@@ -500,7 +520,8 @@ public sealed class GameControl : Control
             "Wheel/1-7 choose block",
             "F1 toggle mouse look (Esc release)",
             "F2/F3 invert X/Y",
-            "+/- adjust sensitivity"
+            "+/- adjust sensitivity",
+            "F6 toggle GI, F7/F8 sample count"
         };
 
         double yOffset = padding + fpsLayout.Height + padding * 0.8;
@@ -518,12 +539,21 @@ public sealed class GameControl : Control
             Brushes.White);
         settingsLayout.Draw(context, new Point(padding, yOffset + 4));
 
+        double giStartY = yOffset + 4 + settingsLayout.Height + 2;
+        var giBrush = _giSettings.Enabled ? Brushes.LightGreen : Brushes.LightGray;
+        var giLayout = new TextLayout(
+            $"GI: {(_giSettings.Enabled ? "On" : "Off")}  Samples: {_giSettings.DiffuseSampleCount}",
+            _hudTypeface,
+            13,
+            giBrush);
+        giLayout.Draw(context, new Point(padding, giStartY));
+
         var invertLayout = new TextLayout(
             $"Invert X: {(_invertMouseX ? "On" : "Off")}  Y: {(_invertMouseY ? "On" : "Off")}",
             _hudTypeface,
             13,
             Brushes.White);
-        double debugStartY = yOffset + 4 + settingsLayout.Height + 2;
+        double debugStartY = giStartY + giLayout.Height + 2;
         invertLayout.Draw(context, new Point(padding, debugStartY));
 
         debugStartY += invertLayout.Height + 2;
@@ -585,6 +615,21 @@ public sealed class GameControl : Control
             RegenerateWorld();
         }
 
+        if (IsKeyPressed(Key.F6))
+        {
+            ToggleGlobalIllumination();
+        }
+
+        if (IsKeyPressed(Key.F7))
+        {
+            AdjustGiSamples(-1);
+        }
+
+        if (IsKeyPressed(Key.F8))
+        {
+            AdjustGiSamples(1);
+        }
+
         if (IsKeyPressed(Key.Add) || IsKeyPressed(Key.OemPlus))
         {
             AdjustMouseSensitivity(0.02f);
@@ -599,6 +644,29 @@ public sealed class GameControl : Control
     private void AdjustMouseSensitivity(float delta)
     {
         _mouseSensitivity = Math.Clamp(_mouseSensitivity + delta, 0.05f, 0.6f);
+    }
+
+    private void RefreshRayTracer()
+    {
+        _rayTracer = CreateRayTracer(_giSettings);
+    }
+
+    private void ToggleGlobalIllumination()
+    {
+        _giSettings = _giSettings with { Enabled = !_giSettings.Enabled };
+        RefreshRayTracer();
+    }
+
+    private void AdjustGiSamples(int delta)
+    {
+        int newSamples = Math.Clamp(_giSettings.DiffuseSampleCount + delta, GiSamplesMin, GiSamplesMax);
+        if (newSamples == _giSettings.DiffuseSampleCount)
+        {
+            return;
+        }
+
+        _giSettings = _giSettings with { DiffuseSampleCount = newSamples };
+        RefreshRayTracer();
     }
 
     private void RegenerateWorld()
