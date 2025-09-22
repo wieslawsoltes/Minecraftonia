@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -9,7 +10,8 @@ namespace Minecraftonia.VoxelRendering;
 
 public sealed class VoxelRayTracer<TBlock>
 {
-    private const float MaxDistance = 90f;
+    public const float DefaultMaxTraceDistance = 90f;
+    private const float MaxDistance = DefaultMaxTraceDistance;
 
     private readonly PixelSize _renderSize;
     private readonly float _fieldOfViewDegrees;
@@ -18,6 +20,8 @@ public sealed class VoxelRayTracer<TBlock>
     private readonly float _fogStart;
     private readonly float _fogEnd;
     private readonly Vector3 _fogColor;
+    private readonly float _fogInvRange;
+    private readonly ParallelOptions _parallelOptions;
 
     public VoxelRayTracer(
         PixelSize renderSize,
@@ -35,6 +39,12 @@ public sealed class VoxelRayTracer<TBlock>
         _fogStart = fogStart;
         _fogEnd = fogEnd;
         _fogColor = fogColor ?? new Vector3(0.72f, 0.84f, 0.96f);
+        float range = Math.Max(_fogEnd - _fogStart, 0.0001f);
+        _fogInvRange = 1f / range;
+        _parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
+        };
     }
 
     public VoxelRenderResult<TBlock> Render(
@@ -72,6 +82,8 @@ public sealed class VoxelRayTracer<TBlock>
         Vector3 up = Vector3.Normalize(Vector3.Cross(right, forward));
         float aspect = _renderSize.Width / (float)_renderSize.Height;
         float tanHalfFov = MathF.Tan(_fieldOfViewDegrees * 0.5f * MathF.PI / 180f);
+        Vector3 basisX = right * (aspect * tanHalfFov);
+        Vector3 basisY = up * tanHalfFov;
         var camera = new VoxelCamera(forward, right, up, tanHalfFov, aspect);
 
         Vector3 eye = player.EyePosition;
@@ -83,25 +95,36 @@ public sealed class VoxelRayTracer<TBlock>
             int stride = fbLock.RowBytes;
             int width = fb.PixelSize.Width;
             int height = fb.PixelSize.Height;
+            float invWidth = 1f / width;
+            float invHeight = 1f / height;
 
-            for (int y = 0; y < height; y++)
+            Parallel.For(0, height, _parallelOptions, y =>
             {
                 byte* row = buffer + y * stride;
-                float ndcY = 1f - ((y + 0.5f) / height) * 2f;
+                float py = (y + 0.5f) * invHeight;
+                float ndcY = 1f - py * 2f;
 
                 for (int x = 0; x < width; x++)
                 {
-                    float ndcX = ((x + 0.5f) / width) * 2f - 1f;
-                    Vector3 dir = forward
-                                   + ndcX * aspect * tanHalfFov * right
-                                   + ndcY * tanHalfFov * up;
-                    dir = Vector3.Normalize(dir);
+                    float px = (x + 0.5f) * invWidth;
+                    float ndcX = px * 2f - 1f;
+                    Vector3 dir = forward + ndcX * basisX + ndcY * basisY;
+                    float lenSq = dir.X * dir.X + dir.Y * dir.Y + dir.Z * dir.Z;
+                    if (lenSq > 1e-12f)
+                    {
+                        float invLen = MathF.ReciprocalSqrtEstimate(lenSq);
+                        dir *= invLen;
+                    }
+                    else
+                    {
+                        dir = forward;
+                    }
 
                     Vector4 sample = TraceRay(world, eye, dir, materials, out float distance);
                     sample = ApplyFog(sample, distance);
                     WritePixel(row, x, sample);
                 }
-            }
+            });
         }
 
         return new VoxelRenderResult<TBlock>(fb, camera);
@@ -128,27 +151,60 @@ public sealed class VoxelRayTracer<TBlock>
         int stepY = rayDirY < 0 ? -1 : 1;
         int stepZ = rayDirZ < 0 ? -1 : 1;
 
-        float deltaDistX = rayDirX == 0 ? float.MaxValue : MathF.Abs(1f / rayDirX);
-        float deltaDistY = rayDirY == 0 ? float.MaxValue : MathF.Abs(1f / rayDirY);
-        float deltaDistZ = rayDirZ == 0 ? float.MaxValue : MathF.Abs(1f / rayDirZ);
+        float invRayDirX = rayDirX == 0 ? 0f : 1f / rayDirX;
+        float invRayDirY = rayDirY == 0 ? 0f : 1f / rayDirY;
+        float invRayDirZ = rayDirZ == 0 ? 0f : 1f / rayDirZ;
 
-        float sideDistX = rayDirX < 0
-            ? (origin.X - mapX) * deltaDistX
-            : (mapX + 1f - origin.X) * deltaDistX;
+        float deltaDistX = MathF.Abs(invRayDirX);
+        float deltaDistY = MathF.Abs(invRayDirY);
+        float deltaDistZ = MathF.Abs(invRayDirZ);
 
-        float sideDistY = rayDirY < 0
-            ? (origin.Y - mapY) * deltaDistY
-            : (mapY + 1f - origin.Y) * deltaDistY;
+        float nextVoxelBoundaryX = stepX > 0 ? (mapX + 1f) : mapX;
+        float nextVoxelBoundaryY = stepY > 0 ? (mapY + 1f) : mapY;
+        float nextVoxelBoundaryZ = stepZ > 0 ? (mapZ + 1f) : mapZ;
 
-        float sideDistZ = rayDirZ < 0
-            ? (origin.Z - mapZ) * deltaDistZ
-            : (mapZ + 1f - origin.Z) * deltaDistZ;
+        float sideDistX = stepX > 0
+            ? (nextVoxelBoundaryX - origin.X) * deltaDistX
+            : (origin.X - nextVoxelBoundaryX) * deltaDistX;
+
+        float sideDistY = stepY > 0
+            ? (nextVoxelBoundaryY - origin.Y) * deltaDistY
+            : (origin.Y - nextVoxelBoundaryY) * deltaDistY;
+
+        float sideDistZ = stepZ > 0
+            ? (nextVoxelBoundaryZ - origin.Z) * deltaDistZ
+            : (origin.Z - nextVoxelBoundaryZ) * deltaDistZ;
 
         Vector3 accumColor = Vector3.Zero;
         float accumAlpha = 0f;
         float hitDistance = MaxDistance;
 
         const int maxSteps = 512;
+        var cache = new VoxelWorld<TBlock>.BlockAccessCache();
+        var dims = world.ChunkSize;
+
+        int dimsX = dims.SizeX;
+        int dimsY = dims.SizeY;
+        int dimsZ = dims.SizeZ;
+        int chunkX = mapX / dimsX;
+        int chunkY = mapY / dimsY;
+        int chunkZ = mapZ / dimsZ;
+        int localX = mapX - chunkX * dimsX;
+        int localY = mapY - chunkY * dimsY;
+        int localZ = mapZ - chunkZ * dimsZ;
+
+        int chunkCountX = world.ChunkCountX;
+        int chunkCountY = world.ChunkCountY;
+        int chunkCountZ = world.ChunkCountZ;
+
+        if (chunkX < 0 || chunkX >= chunkCountX ||
+            chunkY < 0 || chunkY >= chunkCountY ||
+            chunkZ < 0 || chunkZ >= chunkCountZ)
+        {
+            outDistance = 0f;
+            Vector3 skyColor = SampleSky(direction);
+            return new Vector4(skyColor, 1f);
+        }
 
         for (int step = 0; step < maxSteps; step++)
         {
@@ -160,6 +216,17 @@ public sealed class VoxelRayTracer<TBlock>
                 if (sideDistX < sideDistZ)
                 {
                     mapX += stepX;
+                    localX += stepX;
+                    if (localX >= dimsX)
+                    {
+                        localX = 0;
+                        chunkX += 1;
+                    }
+                    else if (localX < 0)
+                    {
+                        localX = dimsX - 1;
+                        chunkX -= 1;
+                    }
                     traveled = sideDistX;
                     sideDistX += deltaDistX;
                     face = stepX > 0 ? BlockFace.NegativeX : BlockFace.PositiveX;
@@ -167,6 +234,17 @@ public sealed class VoxelRayTracer<TBlock>
                 else
                 {
                     mapZ += stepZ;
+                    localZ += stepZ;
+                    if (localZ >= dimsZ)
+                    {
+                        localZ = 0;
+                        chunkZ += 1;
+                    }
+                    else if (localZ < 0)
+                    {
+                        localZ = dimsZ - 1;
+                        chunkZ -= 1;
+                    }
                     traveled = sideDistZ;
                     sideDistZ += deltaDistZ;
                     face = stepZ > 0 ? BlockFace.NegativeZ : BlockFace.PositiveZ;
@@ -177,6 +255,17 @@ public sealed class VoxelRayTracer<TBlock>
                 if (sideDistY < sideDistZ)
                 {
                     mapY += stepY;
+                    localY += stepY;
+                    if (localY >= dimsY)
+                    {
+                        localY = 0;
+                        chunkY += 1;
+                    }
+                    else if (localY < 0)
+                    {
+                        localY = dimsY - 1;
+                        chunkY -= 1;
+                    }
                     traveled = sideDistY;
                     sideDistY += deltaDistY;
                     face = stepY > 0 ? BlockFace.NegativeY : BlockFace.PositiveY;
@@ -184,6 +273,17 @@ public sealed class VoxelRayTracer<TBlock>
                 else
                 {
                     mapZ += stepZ;
+                    localZ += stepZ;
+                    if (localZ >= dimsZ)
+                    {
+                        localZ = 0;
+                        chunkZ += 1;
+                    }
+                    else if (localZ < 0)
+                    {
+                        localZ = dimsZ - 1;
+                        chunkZ -= 1;
+                    }
                     traveled = sideDistZ;
                     sideDistZ += deltaDistZ;
                     face = stepZ > 0 ? BlockFace.NegativeZ : BlockFace.PositiveZ;
@@ -195,12 +295,18 @@ public sealed class VoxelRayTracer<TBlock>
                 break;
             }
 
-            if (!world.InBounds(mapX, mapY, mapZ))
+            if (chunkX < 0 || chunkX >= chunkCountX ||
+                chunkY < 0 || chunkY >= chunkCountY ||
+                chunkZ < 0 || chunkZ >= chunkCountZ)
             {
-                continue;
+                Vector3 sky = SampleSky(direction);
+                accumColor += (1f - accumAlpha) * sky;
+                accumAlpha = 1f;
+                hitDistance = traveled;
+                break;
             }
 
-            TBlock block = world.GetBlock(mapX, mapY, mapZ);
+            TBlock block = world.GetBlockFast(chunkX, chunkY, chunkZ, localX, localY, localZ, ref cache);
             if (_isEmpty(block))
             {
                 continue;
@@ -255,7 +361,7 @@ public sealed class VoxelRayTracer<TBlock>
             return color;
         }
 
-        float fogFactor = Math.Clamp((distance - _fogStart) / (_fogEnd - _fogStart), 0f, 1f);
+        float fogFactor = Math.Clamp((distance - _fogStart) * _fogInvRange, 0f, 1f);
         var rgb = new Vector3(color.X, color.Y, color.Z);
         rgb = Vector3.Lerp(rgb, _fogColor, fogFactor);
         return new Vector4(rgb, color.W);

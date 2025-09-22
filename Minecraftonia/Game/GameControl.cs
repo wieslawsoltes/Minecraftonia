@@ -19,9 +19,9 @@ public sealed class GameControl : Control
 {
     private const float FieldOfViewDegrees = 70f;
 
-    private readonly DispatcherTimer _timer;
+    private bool _isFrameScheduled;
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
-    private long _lastTicks;
+    private TimeSpan _lastFrameTime;
 
     private readonly HashSet<Key> _keysDown = new();
     private readonly HashSet<Key> _keysPressed = new();
@@ -31,12 +31,16 @@ public sealed class GameControl : Control
 
     private MinecraftoniaGame _game;
     private readonly BlockTextures _textures;
+    private readonly MinecraftoniaWorldConfig _worldConfig;
+    private readonly int _defaultStreamingRadius;
     private readonly VoxelRayTracer<BlockType> _rayTracer;
     private WriteableBitmap? _framebuffer;
     private readonly PixelSize _renderSize = new PixelSize(360, 202);
 
     private VoxelCamera _camera;
     private bool _hasCamera;
+
+    private readonly Random _worldSeedGenerator = new();
 
     private readonly Typeface _hudTypeface = Typeface.Default;
     private float _smoothedFps = 60f;
@@ -70,27 +74,35 @@ public sealed class GameControl : Control
         ClipToBounds = true;
 
         _textures = new BlockTextures();
-        _game = new MinecraftoniaGame(96, 48, 96, textures: _textures);
+        _worldConfig = MinecraftoniaWorldConfig.FromDimensions(
+            96,
+            48,
+            96,
+            waterLevel: 8,
+            seed: 1337,
+            generationMode: TerrainGenerationMode.Legacy);
+        _defaultStreamingRadius = CalculateStreamingRadius(_worldConfig);
+        _game = new MinecraftoniaGame(_worldConfig, textures: _textures, chunkStreamingRadius: _defaultStreamingRadius);
         _rayTracer = new VoxelRayTracer<BlockType>(
             _renderSize,
             FieldOfViewDegrees,
             block => block.IsSolid(),
             block => block == BlockType.Air);
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-        _timer.Tick += OnTick;
-        _lastTicks = _stopwatch.ElapsedTicks;
+    }
+
+    private static int CalculateStreamingRadius(MinecraftoniaWorldConfig config)
+    {
+        int minChunkEdge = Math.Max(1, Math.Min(config.ChunkSizeX, config.ChunkSizeZ));
+        int viewRadius = (int)Math.Ceiling(VoxelRayTracer<BlockType>.DefaultMaxTraceDistance / minChunkEdge);
+        int baseRadius = Math.Max(3, viewRadius + 1);
+        int maxFeasible = Math.Max(Math.Max(config.ChunkCountX, config.ChunkCountZ), 1);
+        return Math.Min(baseRadius, maxFeasible);
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        if (!_timer.IsEnabled)
-        {
-            _lastTicks = _stopwatch.ElapsedTicks;
-            _timer.Start();
-        }
-
         _topLevel = TopLevel.GetTopLevel(this);
         SubscribeToTopLevelInput();
 
@@ -98,15 +110,15 @@ public sealed class GameControl : Control
         {
             SetMouseLook(true);
         }
+
+        RequestAnimationFrameLoop();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        if (_timer.IsEnabled)
-        {
-            _timer.Stop();
-        }
+        _isFrameScheduled = false;
+        _lastFrameTime = TimeSpan.Zero;
 
         UnsubscribeFromTopLevelInput();
         _topLevel = null;
@@ -120,11 +132,26 @@ public sealed class GameControl : Control
         _framebuffer = null;
     }
 
-    private void OnTick(object? sender, EventArgs e)
+    private void OnAnimationFrame(TimeSpan timestamp)
     {
-        var currentTicks = _stopwatch.ElapsedTicks;
-        var delta = (currentTicks - _lastTicks) / (double)Stopwatch.Frequency;
-        _lastTicks = currentTicks;
+        _isFrameScheduled = false;
+
+        if (VisualRoot is null)
+        {
+            _lastFrameTime = TimeSpan.Zero;
+            return;
+        }
+
+        double delta;
+        if (_lastFrameTime == TimeSpan.Zero)
+        {
+            delta = 0.016;
+        }
+        else
+        {
+            delta = (timestamp - _lastFrameTime).TotalSeconds;
+        }
+        _lastFrameTime = timestamp;
 
         if (delta <= 0)
         {
@@ -133,6 +160,18 @@ public sealed class GameControl : Control
 
         delta = Math.Min(delta, 0.1);
         UpdateGame((float)delta);
+        RequestAnimationFrameLoop();
+    }
+
+    private void RequestAnimationFrameLoop()
+    {
+        if (_isFrameScheduled || _topLevel is not { } topLevel)
+        {
+            return;
+        }
+
+        _isFrameScheduled = true;
+        topLevel.RequestAnimationFrame(OnAnimationFrame);
     }
 
     private void UpdateGame(float deltaTime)
@@ -535,6 +574,11 @@ public sealed class GameControl : Control
             _invertMouseY = !_invertMouseY;
         }
 
+        if (IsKeyPressed(Key.F5))
+        {
+            RegenerateWorld();
+        }
+
         if (IsKeyPressed(Key.Add) || IsKeyPressed(Key.OemPlus))
         {
             AdjustMouseSensitivity(0.02f);
@@ -549,6 +593,41 @@ public sealed class GameControl : Control
     private void AdjustMouseSensitivity(float delta)
     {
         _mouseSensitivity = Math.Clamp(_mouseSensitivity + delta, 0.05f, 0.6f);
+    }
+
+    private void RegenerateWorld()
+    {
+        var currentConfig = _game.World.Config;
+        int newSeed = _worldSeedGenerator.Next(int.MinValue, int.MaxValue);
+
+        var regeneratedConfig = new MinecraftoniaWorldConfig
+        {
+            ChunkSizeX = currentConfig.ChunkSizeX,
+            ChunkSizeY = currentConfig.ChunkSizeY,
+            ChunkSizeZ = currentConfig.ChunkSizeZ,
+            ChunkCountX = currentConfig.ChunkCountX,
+            ChunkCountY = currentConfig.ChunkCountY,
+            ChunkCountZ = currentConfig.ChunkCountZ,
+            WaterLevel = currentConfig.WaterLevel,
+            Seed = newSeed,
+            GenerationMode = TerrainGenerationMode.WaveFunctionCollapse
+        };
+
+        float yaw = _game.Player.Yaw;
+        float pitch = _game.Player.Pitch;
+
+        int streamingRadius = CalculateStreamingRadius(regeneratedConfig);
+
+        _game = new MinecraftoniaGame(
+            regeneratedConfig,
+            initialYaw: yaw,
+            initialPitch: pitch,
+            textures: _textures,
+            chunkStreamingRadius: streamingRadius);
+
+        _framebuffer?.Dispose();
+        _framebuffer = null;
+        _hasCamera = false;
     }
 
     private void SetMouseLook(bool enabled)
@@ -690,7 +769,7 @@ public sealed class GameControl : Control
 
     public void StartNewGame()
     {
-        _game = new MinecraftoniaGame(96, 48, 96, textures: _textures);
+        _game = new MinecraftoniaGame(_worldConfig, textures: _textures, chunkStreamingRadius: _defaultStreamingRadius);
         _isGameActive = true;
         ResetTransientInputState();
         _smoothedFps = 60f;

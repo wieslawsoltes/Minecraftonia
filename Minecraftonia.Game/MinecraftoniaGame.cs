@@ -27,6 +27,8 @@ public sealed class MinecraftoniaGame
     private VoxelRaycastHit<BlockType> _currentHit;
     private bool _hasCurrentHit;
 
+    private readonly int _chunkStreamingRadius;
+
     public MinecraftoniaVoxelWorld World { get; }
     public Player Player { get; }
     public BlockTextures Textures { get; }
@@ -43,16 +45,13 @@ public sealed class MinecraftoniaGame
     public bool DebugGrounded { get; private set; }
 
     public MinecraftoniaGame(
-        int width,
-        int height,
-        int depth,
-        int waterLevel = 8,
-        int seed = 1337,
+        MinecraftoniaWorldConfig? config = null,
         float initialYaw = 180f,
         float initialPitch = -12f,
-        BlockTextures? textures = null)
+        BlockTextures? textures = null,
+        int chunkStreamingRadius = 2)
         : this(
-            new MinecraftoniaVoxelWorld(width, height, depth, waterLevel, seed),
+            new MinecraftoniaVoxelWorld(config ?? new MinecraftoniaWorldConfig()),
             textures ?? new BlockTextures(),
             new Player
             {
@@ -60,43 +59,146 @@ public sealed class MinecraftoniaGame
                 Pitch = initialPitch
             },
             selectedPaletteIndex: 0,
+            chunkStreamingRadius,
             initializeSpawn: true)
     {
     }
+
+public MinecraftoniaGame(
+    int width,
+    int height,
+    int depth,
+    int waterLevel = 8,
+    int seed = 1337,
+    float initialYaw = 180f,
+    float initialPitch = -12f,
+    BlockTextures? textures = null,
+    int chunkStreamingRadius = 2)
+    : this(
+        new MinecraftoniaVoxelWorld(MinecraftoniaWorldConfig.FromDimensions(width, height, depth, waterLevel, seed)),
+        textures ?? new BlockTextures(),
+        new Player
+        {
+            Yaw = initialYaw,
+            Pitch = initialPitch
+        },
+        selectedPaletteIndex: 0,
+        chunkStreamingRadius,
+        initializeSpawn: true)
+{
+}
 
     private MinecraftoniaGame(
         MinecraftoniaVoxelWorld world,
         BlockTextures textures,
         Player player,
         int selectedPaletteIndex,
+        int chunkStreamingRadius,
         bool initializeSpawn)
     {
         World = world;
         Textures = textures;
         Player = player;
+
+        int minChunkEdge = Math.Max(1, Math.Min(world.ChunkSize.SizeX, world.ChunkSize.SizeZ));
+        int viewRadius = (int)MathF.Ceiling(VoxelRayTracer<BlockType>.DefaultMaxTraceDistance / minChunkEdge);
+        int maxFeasibleRadius = Math.Max(Math.Max(world.ChunkCountX, world.ChunkCountZ), 1);
+
+        _chunkStreamingRadius = Math.Max(1, chunkStreamingRadius);
+        _chunkStreamingRadius = Math.Max(_chunkStreamingRadius, viewRadius + 1);
+        _chunkStreamingRadius = Math.Min(_chunkStreamingRadius, maxFeasibleRadius);
+
         SelectedPaletteIndex = Math.Clamp(selectedPaletteIndex, 0, _palette.Length - 1);
+
+        int warmRadius = Math.Min(_chunkStreamingRadius + 1, maxFeasibleRadius);
 
         if (initializeSpawn)
         {
+            Vector3 preloadOrigin = World.TryGetPreferredSpawn(out var preferred)
+                ? preferred
+                : new Vector3(World.Width / 2f, World.WaterLevel + 4f, World.Depth / 2f);
+
+            World.EnsureChunksAround(preloadOrigin, warmRadius);
             InitializePlayerPosition();
+        }
+        else
+        {
+            World.EnsureChunksAround(Player.Position, warmRadius);
         }
     }
 
     public static MinecraftoniaGame FromSave(GameSaveData save, BlockTextures? textures = null)
     {
+        if (save.Version == 1)
+        {
+            return FromLegacySave(save, textures);
+        }
+
         if (save.Version != GameSaveData.CurrentVersion)
         {
             throw new NotSupportedException($"Unsupported save version: {save.Version}");
         }
 
+        var config = new MinecraftoniaWorldConfig
+        {
+            ChunkSizeX = save.ChunkSizeX > 0 ? save.ChunkSizeX : 16,
+            ChunkSizeY = save.ChunkSizeY > 0 ? save.ChunkSizeY : 16,
+            ChunkSizeZ = save.ChunkSizeZ > 0 ? save.ChunkSizeZ : 16,
+            ChunkCountX = save.ChunkCountX > 0 ? save.ChunkCountX : Math.Max(1, save.Width / Math.Max(1, save.ChunkSizeX)),
+            ChunkCountY = save.ChunkCountY > 0 ? save.ChunkCountY : Math.Max(1, save.Height / Math.Max(1, save.ChunkSizeY)),
+            ChunkCountZ = save.ChunkCountZ > 0 ? save.ChunkCountZ : Math.Max(1, save.Depth / Math.Max(1, save.ChunkSizeZ)),
+            WaterLevel = save.WaterLevel,
+            Seed = save.Seed,
+            GenerationMode = save.GenerationMode
+        };
+
+        var world = new MinecraftoniaVoxelWorld(config);
+        if (save.Chunks is { Count: > 0 })
+        {
+            foreach (var chunk in save.Chunks)
+            {
+                int expectedLength = world.ChunkSize.Volume;
+                if (chunk.Blocks.Length != expectedLength)
+                {
+                    throw new InvalidOperationException($"Chunk {chunk.X},{chunk.Y},{chunk.Z} expected {expectedLength} entries but found {chunk.Blocks.Length}.");
+                }
+
+                var buffer = new BlockType[expectedLength];
+                for (int i = 0; i < expectedLength; i++)
+                {
+                    buffer[i] = (BlockType)chunk.Blocks[i];
+                }
+
+                world.LoadChunk(new ChunkCoordinate(chunk.X, chunk.Y, chunk.Z), buffer, markDirty: true);
+            }
+        }
+
+        var player = new Player
+        {
+            Position = new Vector3(save.Player.X, save.Player.Y, save.Player.Z),
+            Velocity = new Vector3(save.Player.VelocityX, save.Player.VelocityY, save.Player.VelocityZ),
+            Yaw = save.Player.Yaw,
+            Pitch = save.Player.Pitch,
+            IsOnGround = save.Player.IsOnGround,
+            EyeHeight = save.Player.EyeHeight
+        };
+
+        var texturesInstance = textures ?? new BlockTextures();
+        int streamingRadius = save.ChunkStreamingRadius > 0 ? save.ChunkStreamingRadius : 2;
+
+        return new MinecraftoniaGame(world, texturesInstance, player, save.SelectedPaletteIndex, streamingRadius, initializeSpawn: false);
+    }
+
+    private static MinecraftoniaGame FromLegacySave(GameSaveData save, BlockTextures? textures)
+    {
         int expected = save.Width * save.Height * save.Depth;
         if (save.Blocks.Length != expected)
         {
             throw new InvalidOperationException($"Corrupted save: expected {expected} blocks, found {save.Blocks.Length}.");
         }
 
-        var blocks = new BlockType[save.Blocks.Length];
-        for (int i = 0; i < blocks.Length; i++)
+        var blocks = new BlockType[expected];
+        for (int i = 0; i < expected; i++)
         {
             blocks[i] = (BlockType)save.Blocks[i];
         }
@@ -120,22 +222,55 @@ public sealed class MinecraftoniaGame
         };
 
         var texturesInstance = textures ?? new BlockTextures();
+        int streamingRadius = save.ChunkStreamingRadius > 0 ? save.ChunkStreamingRadius : 2;
 
-        return new MinecraftoniaGame(world, texturesInstance, player, save.SelectedPaletteIndex, initializeSpawn: false);
+        return new MinecraftoniaGame(world, texturesInstance, player, save.SelectedPaletteIndex, streamingRadius, initializeSpawn: false);
     }
 
     public GameSaveData CreateSaveData()
     {
-        var blocks = CaptureWorldBlocks();
+        var chunks = new List<ChunkSaveData>();
+
+        foreach (var chunk in new List<VoxelChunk<BlockType>>(World.LoadedChunks.Values))
+        {
+            if (!chunk.IsDirty)
+            {
+                continue;
+            }
+
+            var data = chunk.DataReadOnlySpan;
+            var bytes = new byte[data.Length];
+            for (int i = 0; i < data.Length; i++)
+            {
+                bytes[i] = (byte)data[i];
+            }
+
+            chunks.Add(new ChunkSaveData
+            {
+                X = chunk.Coordinate.X,
+                Y = chunk.Coordinate.Y,
+                Z = chunk.Coordinate.Z,
+                Blocks = bytes
+            });
+        }
 
         return new GameSaveData
         {
+            Version = GameSaveData.CurrentVersion,
             Width = World.Width,
             Height = World.Height,
             Depth = World.Depth,
             WaterLevel = World.WaterLevel,
             Seed = World.Seed,
-            Blocks = blocks,
+            GenerationMode = World.Config.GenerationMode,
+            ChunkSizeX = World.Config.ChunkSizeX,
+            ChunkSizeY = World.Config.ChunkSizeY,
+            ChunkSizeZ = World.Config.ChunkSizeZ,
+            ChunkCountX = World.Config.ChunkCountX,
+            ChunkCountY = World.Config.ChunkCountY,
+            ChunkCountZ = World.Config.ChunkCountZ,
+            ChunkStreamingRadius = _chunkStreamingRadius,
+            Chunks = chunks,
             SelectedPaletteIndex = SelectedPaletteIndex,
             Player = new PlayerSaveData
             {
@@ -153,28 +288,12 @@ public sealed class MinecraftoniaGame
         };
     }
 
-    private byte[] CaptureWorldBlocks()
-    {
-        var data = new byte[World.Width * World.Height * World.Depth];
-        int index = 0;
-        for (int x = 0; x < World.Width; x++)
-        {
-            for (int y = 0; y < World.Height; y++)
-            {
-                for (int z = 0; z < World.Depth; z++)
-                {
-                    data[index++] = (byte)World.GetBlock(x, y, z);
-                }
-            }
-        }
-
-        return data;
-    }
-
     public void Update(in GameInputState input, float deltaTime)
     {
+        World.EnsureChunksAround(Player.Position, _chunkStreamingRadius);
         ApplyLook(input, deltaTime);
         ApplyMovement(input, deltaTime);
+        World.EnsureChunksAround(Player.Position, _chunkStreamingRadius);
         UpdateSelection();
         HandleInteractions(input);
     }
@@ -283,12 +402,15 @@ public sealed class MinecraftoniaGame
 
     private void InitializePlayerPosition()
     {
-        Vector3 spawn = FindSpawnPosition();
+        Vector3 spawn = World.TryGetPreferredSpawn(out var preferred)
+            ? preferred
+            : FindSpawnPosition();
         Player.Position = spawn;
         Player.Velocity = Vector3.Zero;
         Player.IsOnGround = false;
 
         ResolveInitialPenetration();
+        World.EnsureChunksAround(Player.Position, Math.Max(1, _chunkStreamingRadius));
     }
 
     private Vector3 FindSpawnPosition()
