@@ -97,6 +97,7 @@ Minecraftonia.sln
 - **Avalonia navigation shell** – Hosts the `GameControl` custom control and overlays menus rendered via XAML. Menu state is driven from `MainWindow.axaml.cs`, which responds to pause events and manages new/load/save flows.
 - **Pointer capture management** – Relies on `GameControl` APIs to toggle raw mouse capture, warp the pointer to the window center, and react to `Esc`/`F1` toggles, keeping UI and camera motion in sync.
 - **Compositor-synced render loop** – `GameControl` now advances simulation via `TopLevel.RequestAnimationFrame`. The loop self-reschedules only while attached to the visual tree, keeping update cadence tightly coupled to Avalonia’s compositor and avoiding timer drift.
+- **SIMD-aware frame orchestration** – Input marshalling and render scheduling remain on the UI thread, but AA and post-processing rely on `System.Numerics.Vector<T>` operations, so we structure pixel buffers and deltas to maximise contiguous memory access for vectorised stages downstream.
 
 ### `Minecraftonia.Game`
 
@@ -114,7 +115,8 @@ Minecraftonia.sln
 ### `Minecraftonia.VoxelRendering`
 
 - **Adaptive ray marcher** – `VoxelRayTracer` casts one centre ray per pixel, then conditionally adds stratified jitter samples when colour/alpha variance signals edge detail. DDA traversal caches chunk/local coordinates and runs per-scanline in parallel.
-- **Parallel FXAA + sharpening** – A multi-threaded post-process applies a refined FXAA pass using contrast-relative thresholds, followed by optional edge-aware sharpening. Flat regions remain untouched; edges are smoothed and re-sharpened without supersampling cost.
+- **SIMD colour pipeline & FXAA** – All colour blending, luma evaluation, and sharpening use `Vector4` maths, letting .NET emit SSE/AVX instructions. The FXAA/sharpen pass copies the render buffer once and processes rows in parallel, preserving alpha while smoothing edges without supersampling cost.
+- **SIMD colour pipeline** – Colour maths leverages `System.Numerics.Vector4` dot products and lerps for luma detection, blending, and sharpening, automatically mapping to hardware SIMD instructions on supported CPUs.
 - **HUD overlay** – `GameControl.Render` draws crosshair, FPS counter, hotbar selection, and block outlines over the framebuffer via Avalonia drawing primitives.
 
 ### Data flow summary
