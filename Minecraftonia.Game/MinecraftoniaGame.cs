@@ -248,7 +248,9 @@ public sealed class MinecraftoniaGame
 
         DebugWishDirection = wishDir;
 
-        float moveSpeed = input.Sprint ? 3.5f : 6.5f;
+        float baseSpeed = 3.5f;
+        float sprintBoost = 6.5f;
+        float moveSpeed = input.Sprint ? sprintBoost : baseSpeed;
         Vector3 horizontalVelocity = wishDir * moveSpeed;
         Player.Velocity = new Vector3(horizontalVelocity.X, Player.Velocity.Y, horizontalVelocity.Z);
 
