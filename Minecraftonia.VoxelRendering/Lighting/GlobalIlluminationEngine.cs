@@ -1,7 +1,8 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.Intrinsics;
+using System.Threading;
 using Minecraftonia.VoxelEngine;
 
 namespace Minecraftonia.VoxelRendering.Lighting;
@@ -28,7 +29,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
     private readonly bool _useBentNormal;
     private readonly int _maxRaymarchSteps;
     private readonly bool _sunVisibilityCacheEnabled;
-    private readonly ConcurrentDictionary<SunVisibilityCacheKey, float> _sunVisibilityCache = new();
+    private readonly ThreadLocal<Dictionary<SunVisibilityCacheKey, float>>? _sunVisibilityCache;
 
     public GlobalIlluminationEngine(
         GlobalIlluminationSettings settings,
@@ -58,13 +59,23 @@ public sealed class GlobalIlluminationEngine<TBlock>
         _useBentNormal = settings.UseBentNormalForAmbient;
         _maxRaymarchSteps = Math.Clamp(settings.MaxSecondarySteps, 16, 256);
         _sunVisibilityCacheEnabled = settings.EnableSunVisibilityCache;
+
+        if (_sunVisibilityCacheEnabled)
+        {
+            _sunVisibilityCache = new ThreadLocal<Dictionary<SunVisibilityCacheKey, float>>(
+                () => new Dictionary<SunVisibilityCacheKey, float>(capacity: 128),
+                trackAllValues: true);
+        }
     }
 
     internal void BeginFrame()
     {
-        if (_sunVisibilityCacheEnabled)
+        if (_sunVisibilityCache is { } caches)
         {
-            _sunVisibilityCache.Clear();
+            foreach (var cache in caches.Values)
+            {
+                cache.Clear();
+            }
         }
     }
 
@@ -137,7 +148,20 @@ public sealed class GlobalIlluminationEngine<TBlock>
             return ComputeSunVisibilityInternal(world, materials, origin, sunDirection);
         }
 
-        return _sunVisibilityCache.GetOrAdd(key, _ => ComputeSunVisibilityInternal(world, materials, origin, sunDirection));
+        var cache = _sunVisibilityCache?.Value;
+        if (cache is null)
+        {
+            return ComputeSunVisibilityInternal(world, materials, origin, sunDirection);
+        }
+
+        if (cache.TryGetValue(key, out float visibility))
+        {
+            return visibility;
+        }
+
+        visibility = ComputeSunVisibilityInternal(world, materials, origin, sunDirection);
+        cache[key] = visibility;
+        return visibility;
     }
 
     private float ComputeSunVisibilityInternal(
