@@ -85,8 +85,7 @@ public sealed class GameControl : Control
             48,
             96,
             waterLevel: 8,
-            seed: 1337,
-            generationMode: TerrainGenerationMode.Legacy);
+            seed: 1337);
         _defaultStreamingRadius = CalculateStreamingRadius(_worldConfig);
         _game = new MinecraftoniaGame(_worldConfig, textures: _textures, chunkStreamingRadius: _defaultStreamingRadius);
         _giSettings = GlobalIlluminationSettings.Default with
@@ -709,8 +708,8 @@ public sealed class GameControl : Control
 
     private void RegenerateWorld()
     {
-        var currentConfig = _game.World.Config;
         int newSeed = _worldSeedGenerator.Next(int.MinValue, int.MaxValue);
+        var currentConfig = _game.World.Config;
 
         var regeneratedConfig = new MinecraftoniaWorldConfig
         {

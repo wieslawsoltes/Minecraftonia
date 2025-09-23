@@ -26,7 +26,6 @@ public sealed class MinecraftoniaWorldConfig
         int depth,
         int waterLevel,
         int seed,
-        TerrainGenerationMode generationMode = TerrainGenerationMode.Legacy,
         int chunkSizeX = 16,
         int chunkSizeY = 16,
         int chunkSizeZ = 16)
@@ -56,7 +55,7 @@ public sealed class MinecraftoniaWorldConfig
             ChunkCountZ = depth / chunkSizeZ,
             WaterLevel = waterLevel,
             Seed = seed,
-            GenerationMode = generationMode
+            GenerationMode = TerrainGenerationMode.Legacy
         };
     }
 }

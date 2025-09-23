@@ -149,7 +149,9 @@ public MinecraftoniaGame(
             ChunkCountZ = save.ChunkCountZ > 0 ? save.ChunkCountZ : Math.Max(1, save.Depth / Math.Max(1, save.ChunkSizeZ)),
             WaterLevel = save.WaterLevel,
             Seed = save.Seed,
-            GenerationMode = save.GenerationMode
+            GenerationMode = Enum.IsDefined(typeof(TerrainGenerationMode), save.GenerationMode)
+                ? save.GenerationMode
+                : TerrainGenerationMode.Legacy
         };
 
         var world = new MinecraftoniaVoxelWorld(config);

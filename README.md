@@ -6,7 +6,7 @@ Minecraftonia is a work-in-progress voxel sandbox built with C# 13/.NET 9 and Av
 
 - **Custom voxel engine** – handcrafted player physics, block interactions, and chunkless world representation tuned for experimentation.
 - **Software ray tracing** – real-time voxel ray marcher that writes into a CPU framebuffer which can be presented either via the legacy Avalonia `WriteableBitmap` path or uploaded to a Skia `GRContext`-backed texture for crisp scaling without traditional GPU shaders.
-- **Procedural terrain generation** – layered noise, biome-inspired surface treatments, tree placement, and underground cave carving.
+- **Procedural terrain generation** – legacy layered noise with caves, shoreline dressing, and tree placement, plus a height-map importer for real-world terrain experiments.
 - **Composable UI shell** – Avalonia-based menus with keyboard/mouse controls, full pointer capture, and configurable sensitivity/inversion.
 - **Save and resume** – JSON save files capture world blocks, player state, and palette selection for persistence between sessions.
 
@@ -76,8 +76,37 @@ To cut a release, create and push a semver tag (e.g., `git tag v0.3.0 && git pus
 | Invert X / Y | `F2` / `F3` | Toggles independently |
 | Sensitivity | `+` / `-` | Adjusts mouse-look multiplier |
 | Hotbar | `1`-`7`, `Tab`, scroll wheel | Scroll cycles palette |
+| Re-roll world | `F5` | Swaps in a real-world inspired terrain snapshot with remapped materials |
 
 Pause the game with `Esc`, then resume, save/exit, or return to the main menu.
+
+## Wave Function Collapse Terrain
+
+Minecraftonia now ships with a voxel-aware Wave Function Collapse (WFC) generator tuned for Minecraft-like landscapes. Patterns are defined as 8×HEIGHT×8 voxel tiles with annotated edges (grass, shore, water, cliff, forest). The solver collapses a grid of these 3D patterns, honouring edge tags in all directions so terrain transitions stay coherent.
+
+- Press `F5` to rebuild the world with a fresh WFC seed.
+- Patterns live in `VoxelPatternLibraryFactory.CreateDefault` and can be extended or tweaked without touching the solver.
+- Each pattern exposes a `BlockType[,,]` payload plus sets of edge tags. Two edges are compatible when they share at least one tag, mirroring MarkovJunior-style rules.
+- A macro blueprint synthesised from elevation and biome masks biases the solver so rivers, mountains, wetlands, and deserts follow authored large-scale shapes. MarkovJunior-style rule passes grow settlements (streets, plazas, facades) on top of the collapsed terrain.
+
+### MarkovJunior Architecture
+
+In addition to terrain WFC, Minecraftonia includes a rule-driven architectural generator built on a MarkovJunior-inspired engine. The pipeline creates layered passes:
+
+- Streets and plazas are carved first, establishing the circulation grid.
+- Room footprints, courtyards, and gardens are stamped with stochastic grammars.
+- Doorways, windows, and supporting pillars follow, respecting street adjacency and structural edges.
+- Finally, façades are voxelised into wood/stone walls, stair blocks, and interior air volumes. Floors become multi-storey shells with openings carved where rules demand.
+
+Rules live in `MarkovJunior/Architecture`, and settlements are placed automatically wherever the macro blueprint tags regions as `biome_settlement`. Export additional debug maps by setting `MINECRAFTONIA_ARCH_DEBUG=1` before launching; the engine will dump blueprint/layout snapshots under `docs/debug/`.
+
+To add a new biome tile:
+
+1. Create a `VoxelPattern3D` with the desired block arrangement.
+2. Tag each edge (`WithEdgeTags`) to describe how it should connect (for example `"grass"`, `"water"`, `"cliff"`).
+3. Register the pattern in the factory list and assign a weight to control its frequency.
+
+The generator automatically retries when contradictions appear and falls back to the legacy noise terrain only if all attempts fail, keeping worlds playable.
 
 ## Project Layout
 
@@ -102,7 +131,7 @@ Minecraftonia.sln
 ### `Minecraftonia.Game`
 
 - **`MinecraftoniaGame` orchestration** – Central façade coordinating player input, movement integration, voxel manipulation, and save/load. Capsule-vs-voxel sweeps handle collisions while the interaction system retains the closest ray hit for block breaking/placing. Chunk ranges are warmed before spawn to avoid hitching.
-- **Biome-aware world generation** – `MinecraftoniaVoxelWorld` drives a wave-function-collapse tile map spanning ocean, coast, plains, forest, hills, mountain, snow, and desert biomes. Tiles are smoothed, heightmaps generated with fractal value noise per-biome bounds, and columns built with stratified materials. The system guarantees a safe plains spawn, applies biome-specific foliage/tree densities, and adapts sand/stone/grass layering.
+- **Wave Function Collapse terrain** – `MinecraftoniaVoxelWorld` provides both legacy layered-noise terrain and a 3D-pattern WFC pipeline. Patterns encode voxel microstructures with edge tags, letting the solver assemble rivers, shores, cliffs, plains, and forests while respecting block-level adjacency.
 - **Save system** – `GameSaveData`/`PlayerSaveData` capture world dimensions, chunk parameters, flattened block arrays, palette index, and player kinematics. Loading reconstructs chunks via span hydration to minimise allocations.
 - **Input pipeline** – `GameControl` converts keyboard/mouse/pointer events into `GameInputState` per frame and forwards it to `_game.Update`.
 
