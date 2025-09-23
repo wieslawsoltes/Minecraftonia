@@ -7,7 +7,6 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
 using Avalonia.Threading;
@@ -35,7 +34,9 @@ public sealed class GameControl : Control
     private readonly MinecraftoniaWorldConfig _worldConfig;
     private readonly int _defaultStreamingRadius;
     private VoxelRayTracer<BlockType> _rayTracer;
-    private WriteableBitmap? _framebuffer;
+    private VoxelFrameBuffer? _framebuffer;
+    private IVoxelFramePresenter _framePresenter = null!;
+    private FramePresentationMode _presentationMode = FramePresentationMode.SkiaTexture;
     private readonly PixelSize _renderSize = new PixelSize(360, 202);
 
     private VoxelCamera _camera;
@@ -98,7 +99,23 @@ public sealed class GameControl : Control
         };
 
         _rayTracer = CreateRayTracer(_giSettings);
+        _framePresenter = CreateFramePresenter(_presentationMode);
+    }
 
+    public FramePresentationMode PresentationMode
+    {
+        get => _presentationMode;
+        set
+        {
+            if (_presentationMode == value)
+            {
+                return;
+            }
+
+            _presentationMode = value;
+            ReplaceFramePresenter(CreateFramePresenter(value));
+            InvalidateVisual();
+        }
     }
 
     private VoxelRayTracer<BlockType> CreateRayTracer(GlobalIlluminationSettings giSettings)
@@ -154,8 +171,11 @@ public sealed class GameControl : Control
             SetMouseLook(false);
         }
 
-        _framebuffer?.Dispose();
+        var framebuffer = _framebuffer;
         _framebuffer = null;
+        framebuffer?.Dispose();
+
+        ReplaceFramePresenter(CreateFramePresenter(_presentationMode));
     }
 
     private void OnAnimationFrame(TimeSpan timestamp)
@@ -455,11 +475,13 @@ public sealed class GameControl : Control
     {
         base.Render(context);
 
-        if (_framebuffer != null)
+        if (_framebuffer is { IsDisposed: false } framebuffer)
         {
-            var sourceRect = new Rect(0, 0, _framebuffer.PixelSize.Width, _framebuffer.PixelSize.Height);
             var destRect = new Rect(Bounds.Size);
-            context.DrawImage(_framebuffer, sourceRect, destRect);
+            if (destRect.Width > 0 && destRect.Height > 0)
+            {
+                _framePresenter.Render(context, framebuffer, destRect);
+            }
         }
 
         DrawBlockHighlight(context);
@@ -521,7 +543,8 @@ public sealed class GameControl : Control
             "F1 toggle mouse look (Esc release)",
             "F2/F3 invert X/Y",
             "+/- adjust sensitivity",
-            "F6 toggle GI, F7/F8 sample count"
+            "F6 toggle GI, F7/F8 sample count",
+            $"F9 toggle render mode ({_presentationMode})"
         };
 
         double yOffset = padding + fpsLayout.Height + padding * 0.8;
@@ -630,6 +653,11 @@ public sealed class GameControl : Control
             AdjustGiSamples(1);
         }
 
+        if (IsKeyPressed(Key.F9))
+        {
+            TogglePresentationMode();
+        }
+
         if (IsKeyPressed(Key.Add) || IsKeyPressed(Key.OemPlus))
         {
             AdjustMouseSensitivity(0.02f);
@@ -669,6 +697,16 @@ public sealed class GameControl : Control
         RefreshRayTracer();
     }
 
+    private void TogglePresentationMode()
+    {
+        PresentationMode = _presentationMode switch
+        {
+            FramePresentationMode.SkiaTexture => FramePresentationMode.WritableBitmap,
+            FramePresentationMode.WritableBitmap => FramePresentationMode.SkiaTexture,
+            _ => FramePresentationMode.SkiaTexture
+        };
+    }
+
     private void RegenerateWorld()
     {
         var currentConfig = _game.World.Config;
@@ -699,8 +737,9 @@ public sealed class GameControl : Control
             textures: _textures,
             chunkStreamingRadius: streamingRadius);
 
-        _framebuffer?.Dispose();
+        var framebuffer = _framebuffer;
         _framebuffer = null;
+        framebuffer?.Dispose();
         _hasCamera = false;
     }
 
@@ -918,4 +957,26 @@ public sealed class GameControl : Control
         PauseGame();
         PauseRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    private IVoxelFramePresenter CreateFramePresenter(FramePresentationMode mode)
+    {
+        return mode switch
+        {
+            FramePresentationMode.WritableBitmap => new WritableBitmapFramePresenter(),
+            FramePresentationMode.SkiaTexture => new SkiaTextureFramePresenter(),
+            _ => new SkiaTextureFramePresenter()
+        };
+    }
+
+    private void ReplaceFramePresenter(IVoxelFramePresenter presenter)
+    {
+        _framePresenter?.Dispose();
+        _framePresenter = presenter;
+    }
+}
+
+public enum FramePresentationMode
+{
+    WritableBitmap,
+    SkiaTexture
 }

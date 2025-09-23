@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
     <ProjectReference Include="..\Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj" />
   </ItemGroup>
