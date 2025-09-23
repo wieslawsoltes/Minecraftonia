@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Minecraftonia.Game.MarkovJunior.Architecture;
+using Minecraftonia.Game.OpenStreetMap;
 using Minecraftonia.VoxelEngine;
 
 namespace Minecraftonia.Game;
@@ -182,13 +183,24 @@ public sealed class MinecraftoniaVoxelWorld : VoxelWorld<BlockType>
         {
             try
             {
-                var blueprint = MacroBlueprintGenerator.Create(gridSizeX, gridSizeZ, _config.Seed ^ (attempt * 7919));
-                var generator = new WaveFunctionCollapseGenerator3D(library, gridSizeX, gridSizeZ, _random, blueprint);
+                var blueprint = SelectBlueprint(gridSizeX, gridSizeZ, attempt);
+                if (!string.IsNullOrWhiteSpace(blueprint.Link))
+                {
+                    string regionLabel = string.IsNullOrWhiteSpace(blueprint.Source) ? "(random OSM region)" : blueprint.Source!;
+                    Console.WriteLine($"[OpenStreetMap] Using region {regionLabel} -> {blueprint.Link}");
+                }
+
+                var generator = new WaveFunctionCollapseGenerator3D(library, gridSizeX, gridSizeZ, _random, blueprint.Blueprint);
                 _legacyBlocks = generator.Generate();
                 _heightMap = BuildHeightMapFromBlocks(_legacyBlocks);
-                ArchitectureVoxelPainter.Apply(_legacyBlocks, _heightMap, blueprint, tileSizeX, tileSizeZ, _random);
+                string? debugSource = ComposeDebugSource(blueprint.Source, blueprint.Link);
+                ArchitectureVoxelPainter.Apply(_legacyBlocks, _heightMap, blueprint.Blueprint, tileSizeX, tileSizeZ, _random, debugSource);
                 _preferredSpawn = FindLegacySpawnPosition();
                 return;
+            }
+            catch (OpenStreetMapUnavailableException)
+            {
+                throw;
             }
             catch
             {
@@ -197,6 +209,85 @@ public sealed class MinecraftoniaVoxelWorld : VoxelWorld<BlockType>
         }
 
         InitializeLegacyTerrain();
+    }
+
+    private readonly record struct BlueprintSelection(MacroBlueprint Blueprint, string? Source, string? Link);
+
+    private BlueprintSelection SelectBlueprint(int gridSizeX, int gridSizeZ, int attempt)
+    {
+        if (_config.UseOpenStreetMap)
+        {
+            try
+            {
+                if (OpenStreetMapBlueprintGenerator.TryCreate(
+                        gridSizeX,
+                        gridSizeZ,
+                        _config.Seed ^ (attempt * 24023),
+                        out var osmBlueprint,
+                        out var description,
+                        out var link) && osmBlueprint is not null)
+                {
+                    return new BlueprintSelection(osmBlueprint, description, link);
+                }
+
+                if (attempt == 0)
+                {
+                    Console.WriteLine("[OpenStreetMap] Query returned no usable features.");
+                }
+
+                if (_config.RequireOpenStreetMap)
+                {
+                    throw new OpenStreetMapUnavailableException("OpenStreetMap-only generation requested but no usable region was found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (attempt == 0)
+                {
+                    Console.WriteLine($"[OpenStreetMap] Failed to fetch region: {ex.Message}.");
+                }
+
+                if (_config.RequireOpenStreetMap)
+                {
+                    throw new OpenStreetMapUnavailableException("OpenStreetMap-only generation requested but fetch failed.", ex);
+                }
+            }
+        }
+        else if (attempt == 0)
+        {
+            Console.WriteLine("[OpenStreetMap] Disabled in world config; using procedural blueprint.");
+        }
+
+        var fallback = MacroBlueprintGenerator.Create(gridSizeX, gridSizeZ, _config.Seed ^ (attempt * 7919));
+        return new BlueprintSelection(fallback, null, null);
+    }
+
+    private static string? ComposeDebugSource(string? label, string? link)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            return string.IsNullOrWhiteSpace(link) ? null : link;
+        }
+
+        if (string.IsNullOrWhiteSpace(link))
+        {
+            return label;
+        }
+
+        return $"{label} | {link}";
+    }
+
+    private sealed class OpenStreetMapUnavailableException : Exception
+    {
+        public OpenStreetMapUnavailableException(string message)
+            : base(message)
+        {
+        }
+
+        public OpenStreetMapUnavailableException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
     }
 
     private void LoadFromHeightMap(int[,] heightMap, int sourceWidth, int sourceDepth, int verticalScale, int waterLevel)

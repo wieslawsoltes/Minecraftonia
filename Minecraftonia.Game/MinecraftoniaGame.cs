@@ -151,7 +151,9 @@ public MinecraftoniaGame(
             Seed = save.Seed,
             GenerationMode = Enum.IsDefined(typeof(TerrainGenerationMode), save.GenerationMode)
                 ? save.GenerationMode
-                : TerrainGenerationMode.Legacy
+                : TerrainGenerationMode.Legacy,
+            UseOpenStreetMap = save.UseOpenStreetMap,
+            RequireOpenStreetMap = save.RequireOpenStreetMap
         };
 
         var world = new MinecraftoniaVoxelWorld(config);
@@ -265,6 +267,8 @@ public MinecraftoniaGame(
             WaterLevel = World.WaterLevel,
             Seed = World.Seed,
             GenerationMode = World.Config.GenerationMode,
+            UseOpenStreetMap = World.Config.UseOpenStreetMap,
+            RequireOpenStreetMap = World.Config.RequireOpenStreetMap,
             ChunkSizeX = World.Config.ChunkSizeX,
             ChunkSizeY = World.Config.ChunkSizeY,
             ChunkSizeZ = World.Config.ChunkSizeZ,

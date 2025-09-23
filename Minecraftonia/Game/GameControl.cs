@@ -721,7 +721,9 @@ public sealed class GameControl : Control
             ChunkCountZ = currentConfig.ChunkCountZ,
             WaterLevel = currentConfig.WaterLevel,
             Seed = newSeed,
-            GenerationMode = TerrainGenerationMode.WaveFunctionCollapse
+            GenerationMode = TerrainGenerationMode.WaveFunctionCollapse,
+            UseOpenStreetMap = true,
+            RequireOpenStreetMap = currentConfig.RequireOpenStreetMap
         };
 
         float yaw = _game.Player.Yaw;

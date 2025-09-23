@@ -15,6 +15,8 @@ public sealed class MinecraftoniaWorldConfig
     public int WaterLevel { get; init; } = 8;
     public int Seed { get; init; } = 1337;
     public TerrainGenerationMode GenerationMode { get; init; } = TerrainGenerationMode.Legacy;
+    public bool UseOpenStreetMap { get; init; } = true;
+    public bool RequireOpenStreetMap { get; init; } = true;
 
     public int Width => ChunkSizeX * ChunkCountX;
     public int Height => ChunkSizeY * ChunkCountY;
@@ -28,7 +30,9 @@ public sealed class MinecraftoniaWorldConfig
         int seed,
         int chunkSizeX = 16,
         int chunkSizeY = 16,
-        int chunkSizeZ = 16)
+        int chunkSizeZ = 16,
+        bool useOpenStreetMap = true,
+        bool requireOpenStreetMap = true)
     {
         if (width % chunkSizeX != 0)
         {
@@ -55,7 +59,9 @@ public sealed class MinecraftoniaWorldConfig
             ChunkCountZ = depth / chunkSizeZ,
             WaterLevel = waterLevel,
             Seed = seed,
-            GenerationMode = TerrainGenerationMode.Legacy
+            GenerationMode = TerrainGenerationMode.Legacy,
+            UseOpenStreetMap = useOpenStreetMap,
+            RequireOpenStreetMap = requireOpenStreetMap
         };
     }
 }

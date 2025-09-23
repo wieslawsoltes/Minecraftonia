@@ -7,7 +7,7 @@ internal static class ArchitectureVoxelPainter
 {
     private const int BaseStructureHeight = 5;
 
-    public static void Apply(BlockType[,,] blocks, int[,] heightMap, MacroBlueprint blueprint, int tileSizeX, int tileSizeZ, Random random)
+    public static void Apply(BlockType[,,] blocks, int[,] heightMap, MacroBlueprint blueprint, int tileSizeX, int tileSizeZ, Random random, string? source = null)
     {
         if (blueprint is null)
         {
@@ -26,7 +26,7 @@ internal static class ArchitectureVoxelPainter
             int originX = context.OriginGridX * tileSizeX;
             int originZ = context.OriginGridZ * tileSizeZ;
 
-            ArchitectureDebugExporter.ExportCluster(blueprint, layout, cluster, context, originX, originZ);
+            ArchitectureDebugExporter.ExportCluster(blueprint, layout, cluster, context, originX, originZ, source);
             BakeCluster(blocks, heightMap, layout, context, originX, originZ, cluster.ModuleType, random);
         }
     }

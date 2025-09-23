@@ -12,7 +12,8 @@ internal static class ArchitectureDebugExporter
         SettlementCluster cluster,
         ArchitectureClusterContext context,
         int originX,
-        int originZ)
+        int originZ,
+        string? source = null)
     {
         var flag = Environment.GetEnvironmentVariable("MINECRAFTONIA_ARCH_DEBUG");
         if (!string.Equals(flag, "1", StringComparison.OrdinalIgnoreCase))
@@ -24,6 +25,10 @@ internal static class ArchitectureDebugExporter
         var path = Path.Combine("docs", "debug", "architecture.txt");
         using var writer = new StreamWriter(path, append: true, Encoding.UTF8);
         writer.WriteLine($"# Cluster {cluster.Id} ({cluster.ModuleType}) origin=({originX},{originZ}) tiles={cluster.Area}");
+        if (!string.IsNullOrWhiteSpace(source))
+        {
+            writer.WriteLine($"# Source: {source}");
+        }
         writer.WriteLine($"# Bounds grid=({cluster.MinX},{cluster.MinZ})-({cluster.MaxX},{cluster.MaxZ}) layout={state.SizeX}x{state.SizeZ}");
 
         writer.WriteLine("Cluster Mask:");

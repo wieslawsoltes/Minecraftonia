@@ -285,7 +285,7 @@ internal static class MacroBlueprintGenerator
         }
     }
 
-    private static IReadOnlyList<SettlementCluster> BuildSettlementClusters(MacroBlueprintCell[,] cells, int seed)
+    internal static IReadOnlyList<SettlementCluster> BuildSettlementClusters(MacroBlueprintCell[,] cells, int seed)
     {
         int width = cells.GetLength(0);
         int depth = cells.GetLength(1);
