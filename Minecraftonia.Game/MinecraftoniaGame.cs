@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.VoxelEngine;
 using Minecraftonia.VoxelRendering;
 
@@ -149,7 +150,11 @@ public MinecraftoniaGame(
             ChunkCountZ = save.ChunkCountZ > 0 ? save.ChunkCountZ : Math.Max(1, save.Depth / Math.Max(1, save.ChunkSizeZ)),
             WaterLevel = save.WaterLevel,
             Seed = save.Seed,
-            GenerationMode = save.GenerationMode
+            GenerationMode = Enum.IsDefined(typeof(TerrainGenerationMode), save.GenerationMode)
+                ? save.GenerationMode
+                : TerrainGenerationMode.Legacy,
+            UseOpenStreetMap = save.UseOpenStreetMap,
+            RequireOpenStreetMap = save.RequireOpenStreetMap
         };
 
         var world = new MinecraftoniaVoxelWorld(config);
@@ -263,6 +268,8 @@ public MinecraftoniaGame(
             WaterLevel = World.WaterLevel,
             Seed = World.Seed,
             GenerationMode = World.Config.GenerationMode,
+            UseOpenStreetMap = World.Config.UseOpenStreetMap,
+            RequireOpenStreetMap = World.Config.RequireOpenStreetMap,
             ChunkSizeX = World.Config.ChunkSizeX,
             ChunkSizeY = World.Config.ChunkSizeY,
             ChunkSizeZ = World.Config.ChunkSizeZ,

@@ -17,6 +17,8 @@ public sealed class GameSaveData
     public PlayerSaveData Player { get; set; } = new();
     public int SelectedPaletteIndex { get; set; }
     public TerrainGenerationMode GenerationMode { get; set; } = TerrainGenerationMode.Legacy;
+    public bool UseOpenStreetMap { get; set; }
+    public bool RequireOpenStreetMap { get; set; } = true;
     public int ChunkSizeX { get; set; }
     public int ChunkSizeY { get; set; }
     public int ChunkSizeZ { get; set; }

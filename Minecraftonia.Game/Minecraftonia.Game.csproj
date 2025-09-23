@@ -14,6 +14,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
     <ProjectReference Include="..\Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj" />
+    <ProjectReference Include="..\Minecraftonia.WaveFunctionCollapse\Minecraftonia.WaveFunctionCollapse.csproj" />
+    <ProjectReference Include="..\Minecraftonia.OpenStreetMap\Minecraftonia.OpenStreetMap.csproj" />
+    <ProjectReference Include="..\Minecraftonia.MarkovJunior\Minecraftonia.MarkovJunior.csproj" />
+    <ProjectReference Include="..\Minecraftonia.MarkovJunior.Architecture\Minecraftonia.MarkovJunior.Architecture.csproj" />
   </ItemGroup>
 
 </Project>
