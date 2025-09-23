@@ -249,6 +249,7 @@ public sealed class VoxelRayTracer<TBlock>
                 in step,
                 hitPoint,
                 uv,
+                step.Distance,
                 material,
                 bounceDepth: 0);
 
@@ -282,6 +283,7 @@ public sealed class VoxelRayTracer<TBlock>
         in VoxelDdaHit<TBlock> hit,
         Vector3 hitPoint,
         Vector2 uv,
+        float viewDistance,
         VoxelMaterialSample material,
         int bounceDepth)
     {
@@ -303,6 +305,7 @@ public sealed class VoxelRayTracer<TBlock>
             in hit,
             hitPoint,
             uv,
+            viewDistance,
             material,
             bounceDepth);
 

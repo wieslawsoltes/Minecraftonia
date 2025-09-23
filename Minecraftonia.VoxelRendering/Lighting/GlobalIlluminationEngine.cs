@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.Intrinsics;
@@ -30,6 +31,15 @@ public sealed class GlobalIlluminationEngine<TBlock>
     private readonly int _maxRaymarchSteps;
     private readonly bool _sunVisibilityCacheEnabled;
     private readonly ThreadLocal<Dictionary<SunVisibilityCacheKey, float>>? _sunVisibilityCache;
+    private readonly bool _irradianceCacheEnabled;
+    private readonly float _temporalBlendFactor;
+    private readonly ConcurrentDictionary<IrradianceCacheKey, IrradianceCacheEntry>? _currentIrradianceCache;
+    private Dictionary<IrradianceCacheKey, IrradianceCacheEntry> _previousIrradianceCache = new();
+    private readonly int _adaptiveMinSamples;
+    private readonly float _adaptiveStartDistance;
+    private readonly float _adaptiveEndDistance;
+    private readonly float _adaptiveInvRange;
+    private readonly ThreadLocal<VoxelWorld<TBlock>.BlockAccessCache> _walkerCache;
 
     public GlobalIlluminationEngine(
         GlobalIlluminationSettings settings,
@@ -59,6 +69,12 @@ public sealed class GlobalIlluminationEngine<TBlock>
         _useBentNormal = settings.UseBentNormalForAmbient;
         _maxRaymarchSteps = Math.Clamp(settings.MaxSecondarySteps, 16, 256);
         _sunVisibilityCacheEnabled = settings.EnableSunVisibilityCache;
+        _irradianceCacheEnabled = settings.EnableIrradianceCache;
+        _temporalBlendFactor = Math.Clamp(settings.TemporalBlendFactor, 0f, 1f);
+        _adaptiveMinSamples = Math.Clamp(settings.AdaptiveMinSamples, 1, _sampleCount);
+        _adaptiveStartDistance = MathF.Max(0f, settings.AdaptiveStartDistance);
+        _adaptiveEndDistance = MathF.Max(_adaptiveStartDistance + 0.0001f, settings.AdaptiveEndDistance);
+        _adaptiveInvRange = 1f / MathF.Max(_adaptiveEndDistance - _adaptiveStartDistance, 0.0001f);
 
         if (_sunVisibilityCacheEnabled)
         {
@@ -66,6 +82,13 @@ public sealed class GlobalIlluminationEngine<TBlock>
                 () => new Dictionary<SunVisibilityCacheKey, float>(capacity: 128),
                 trackAllValues: true);
         }
+
+        if (_irradianceCacheEnabled)
+        {
+            _currentIrradianceCache = new ConcurrentDictionary<IrradianceCacheKey, IrradianceCacheEntry>();
+        }
+
+        _walkerCache = new ThreadLocal<VoxelWorld<TBlock>.BlockAccessCache>(() => new VoxelWorld<TBlock>.BlockAccessCache());
     }
 
     internal void BeginFrame()
@@ -77,6 +100,22 @@ public sealed class GlobalIlluminationEngine<TBlock>
                 cache.Clear();
             }
         }
+
+        if (_irradianceCacheEnabled && _currentIrradianceCache is { } current)
+        {
+            if (current.Count > 0)
+            {
+                var snapshot = current.ToArray();
+                var previous = _previousIrradianceCache;
+                previous.Clear();
+                foreach (var pair in snapshot)
+                {
+                    previous[pair.Key] = pair.Value;
+                }
+            }
+
+            current.Clear();
+        }
     }
 
     internal LightingResult ComputeLighting(
@@ -85,6 +124,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
         in VoxelDdaHit<TBlock> hit,
         Vector3 hitPoint,
         Vector2 uv,
+        float viewDistance,
         VoxelMaterialSample material,
         int bounceDepth)
     {
@@ -107,16 +147,95 @@ public sealed class GlobalIlluminationEngine<TBlock>
         Vector3 bentNormal = normal;
         Vector3 gi = Vector3.Zero;
 
-        if (_sampleCount > 0 && bounceDepth < _bounceCount)
+        bool canSampleGi = _sampleCount > 0 && bounceDepth < _bounceCount;
+
+        if (canSampleGi)
         {
-            gi = SampleGlobalIllumination(
-                world,
-                materials,
-                hitPoint,
-                normal,
-                bounceDepth,
-                out ambientOcclusion,
-                out bentNormal);
+            if (_irradianceCacheEnabled && _currentIrradianceCache is { } currentCache)
+            {
+                int uBucket = QuantizeIrradianceUv(uv.X);
+                int vBucket = QuantizeIrradianceUv(uv.Y);
+                var cacheKey = new IrradianceCacheKey(hit.VoxelX, hit.VoxelY, hit.VoxelZ, face, uBucket, vBucket);
+
+                if (currentCache.TryGetValue(cacheKey, out var cachedEntry))
+                {
+                    ambientOcclusion = cachedEntry.AmbientOcclusion;
+                    bentNormal = cachedEntry.BentNormal;
+                    gi = cachedEntry.Irradiance;
+                }
+                else
+                {
+                    IrradianceCacheEntry? previousEntry = null;
+                    if (_previousIrradianceCache.TryGetValue(cacheKey, out var prevEntry))
+                    {
+                        previousEntry = prevEntry;
+                    }
+
+                    int sampleBudget = GetSampleBudget(viewDistance, previousEntry, bounceDepth);
+
+                    if (sampleBudget <= 0)
+                    {
+                        if (previousEntry.HasValue)
+                        {
+                            var prev = previousEntry.Value;
+                            ambientOcclusion = prev.AmbientOcclusion;
+                            bentNormal = prev.BentNormal;
+                            gi = prev.Irradiance;
+                            currentCache.TryAdd(cacheKey, prev);
+                        }
+                    }
+                    else
+                    {
+                        Vector3 sampledGi = SampleGlobalIllumination(
+                            world,
+                            materials,
+                            hitPoint,
+                            normal,
+                            bounceDepth,
+                            sampleBudget,
+                            out float sampledAo,
+                            out Vector3 sampledBentNormal,
+                            out int samplesTaken);
+
+                        Vector3 blendedGi = sampledGi;
+                        float blendedAo = sampledAo;
+                        Vector3 blendedBentNormal = sampledBentNormal;
+
+                        if (previousEntry.HasValue)
+                        {
+                        var previous = previousEntry.Value;
+                        blendedGi = Vector3.Lerp(previous.Irradiance, sampledGi, _temporalBlendFactor);
+                        blendedAo = Lerp(previous.AmbientOcclusion, sampledAo, _temporalBlendFactor);
+                        blendedBentNormal = BlendNormal(previous.BentNormal, sampledBentNormal, _temporalBlendFactor);
+                        samplesTaken = Math.Max(samplesTaken, previous.SampleCount);
+                        }
+
+                        var entry = new IrradianceCacheEntry(blendedGi, blendedBentNormal, blendedAo, samplesTaken);
+                        currentCache.AddOrUpdate(cacheKey, entry, (_, _) => entry);
+
+                        ambientOcclusion = blendedAo;
+                        bentNormal = blendedBentNormal;
+                        gi = blendedGi;
+                    }
+                }
+            }
+            else
+            {
+                int sampleBudget = GetSampleBudget(viewDistance, null, bounceDepth);
+                if (sampleBudget > 0)
+                {
+                gi = SampleGlobalIllumination(
+                    world,
+                    materials,
+                    hitPoint,
+                    normal,
+                    bounceDepth,
+                    sampleBudget,
+                    out ambientOcclusion,
+                    out bentNormal,
+                    out _);
+                }
+            }
         }
 
         Vector3 ambientNormal = (_useBentNormal && bentNormal.LengthSquared() > 1e-4f) ? bentNormal : normal;
@@ -204,6 +323,94 @@ public sealed class GlobalIlluminationEngine<TBlock>
         return Math.Clamp(bucket, 0, 7);
     }
 
+    private static int QuantizeIrradianceUv(float value)
+    {
+        if (float.IsNaN(value))
+        {
+            return 0;
+        }
+
+        float clamped = Math.Clamp(value, 0f, 0.999f);
+        return (int)(clamped * 8f);
+    }
+
+    private static float Lerp(float a, float b, float t)
+    {
+        return a + (b - a) * t;
+    }
+
+    private static Vector3 BlendNormal(Vector3 a, Vector3 b, float t)
+    {
+        Vector3 blended = Vector3.Lerp(a, b, t);
+        if (blended.LengthSquared() > 1e-4f)
+        {
+            return Vector3.Normalize(blended);
+        }
+
+        if (b.LengthSquared() > 1e-4f)
+        {
+            return Vector3.Normalize(b);
+        }
+
+        return a.LengthSquared() > 1e-4f ? Vector3.Normalize(a) : Vector3.UnitY;
+    }
+
+    private int GetSampleBudget(float viewDistance, IrradianceCacheEntry? previousEntry, int bounceDepth)
+    {
+        if (_sampleCount <= 0)
+        {
+            return 0;
+        }
+
+        float distanceFactor = Math.Clamp((viewDistance - _adaptiveStartDistance) * _adaptiveInvRange, 0f, 1f);
+        float baseSamples = Lerp(_sampleCount, _adaptiveMinSamples, distanceFactor);
+        int target = Math.Clamp((int)MathF.Round(baseSamples), _adaptiveMinSamples, _sampleCount);
+
+        if (bounceDepth > 0)
+        {
+            target = Math.Max(_adaptiveMinSamples, target / (bounceDepth + 1));
+        }
+
+        if (previousEntry.HasValue && _temporalBlendFactor > 0f)
+        {
+            int previousSamples = Math.Max(previousEntry.Value.SampleCount, _adaptiveMinSamples);
+            if (previousSamples >= target)
+            {
+                float reduction = 1f - Math.Clamp(_temporalBlendFactor * 0.6f, 0f, 0.75f);
+                target = Math.Max(_adaptiveMinSamples, (int)MathF.Round(target * reduction));
+            }
+        }
+
+        return Math.Clamp(target, _adaptiveMinSamples, _sampleCount);
+    }
+
+    private VoxelDdaWalker<TBlock> CreateWalker(
+        VoxelWorld<TBlock> world,
+        Vector3 origin,
+        Vector3 direction,
+        float maxDistance,
+        out ThreadLocal<VoxelWorld<TBlock>.BlockAccessCache>? cacheSource,
+        out VoxelWorld<TBlock>.BlockAccessCache cache)
+    {
+        cacheSource = _walkerCache;
+        cache = cacheSource.Value;
+        return new VoxelDdaWalker<TBlock>(world, origin, direction, maxDistance, _maxRaymarchSteps, ref cache);
+    }
+
+    private static void FinalizeWalker(
+        ref VoxelDdaWalker<TBlock> walker,
+        ThreadLocal<VoxelWorld<TBlock>.BlockAccessCache>? cacheSource,
+        ref VoxelWorld<TBlock>.BlockAccessCache cache)
+    {
+        if (cacheSource is null)
+        {
+            return;
+        }
+
+        walker.CopyCacheTo(ref cache);
+        cacheSource.Value = cache;
+    }
+
     private float TraceVisibility(
         VoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
@@ -211,7 +418,9 @@ public sealed class GlobalIlluminationEngine<TBlock>
         Vector3 direction,
         float maxDistance)
     {
-        var walker = new VoxelDdaWalker<TBlock>(world, origin, direction, maxDistance, _maxRaymarchSteps);
+        ThreadLocal<VoxelWorld<TBlock>.BlockAccessCache>? cacheSource;
+        VoxelWorld<TBlock>.BlockAccessCache cache;
+        var walker = CreateWalker(world, origin, direction, maxDistance, out cacheSource, out cache);
         float visibility = 1f;
 
         while (walker.TryStep(out var step))
@@ -223,7 +432,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
 
             if (step.Kind == VoxelDdaHitKind.Sky)
             {
-                return visibility;
+                break;
             }
 
             TBlock block = step.Block;
@@ -240,10 +449,12 @@ public sealed class GlobalIlluminationEngine<TBlock>
             visibility *= MathF.Max(0f, 1f - opacity);
             if (visibility <= 0.01f)
             {
-                return 0f;
+                visibility = 0f;
+                break;
             }
         }
 
+        FinalizeWalker(ref walker, cacheSource, ref cache);
         return visibility;
     }
 
@@ -253,8 +464,10 @@ public sealed class GlobalIlluminationEngine<TBlock>
         Vector3 hitPoint,
         Vector3 normal,
         int bounceDepth,
+        int sampleCount,
         out float ambientOcclusion,
-        out Vector3 bentNormal)
+        out Vector3 bentNormal,
+        out int samplesTaken)
     {
         Vector3 tangent = BuildPerpendicular(normal);
         Vector3 bitangent = Vector3.Normalize(Vector3.Cross(normal, tangent));
@@ -277,8 +490,11 @@ public sealed class GlobalIlluminationEngine<TBlock>
         const int stride = 17;
 
         float maxDistance = _maxDistance;
+        int taken = 0;
 
-        for (int i = 0; i < _sampleCount; i++)
+        int iterations = Math.Clamp(sampleCount, 0, _sampleCount);
+
+        for (int i = 0; i < iterations; i++)
         {
             int index = (startIndex + i * stride) % poolLength;
             Vector3 local = samplePool[index];
@@ -292,7 +508,9 @@ public sealed class GlobalIlluminationEngine<TBlock>
             bool blocked = false;
             float opacityAccum = 0f;
 
-            var walker = new VoxelDdaWalker<TBlock>(world, sampleOrigin, dir, maxDistance, _maxRaymarchSteps);
+            ThreadLocal<VoxelWorld<TBlock>.BlockAccessCache>? cacheSource;
+            VoxelWorld<TBlock>.BlockAccessCache cache;
+            var walker = CreateWalker(world, sampleOrigin, dir, maxDistance, out cacheSource, out cache);
             while (walker.TryStep(out var step))
             {
                 if (step.Kind == VoxelDdaHitKind.Sky)
@@ -344,6 +562,10 @@ public sealed class GlobalIlluminationEngine<TBlock>
             {
                 bentAccum += dir * weight;
             }
+
+            taken++;
+
+            FinalizeWalker(ref walker, cacheSource, ref cache);
         }
 
         float invWeight = totalWeight > 0f ? 1f / totalWeight : 1f;
@@ -351,6 +573,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
         bentNormal = bentAccum.LengthSquared() > 1e-4f ? Vector3.Normalize(bentAccum) : normal;
 
         Vector3 gi = accum * invWeight;
+        samplesTaken = taken;
         return Vector3.Clamp(gi, Vector3.Zero, new Vector3(4f));
     }
 
@@ -422,6 +645,20 @@ public sealed class GlobalIlluminationEngine<TBlock>
         BlockFace Face,
         int U,
         int V);
+
+    private readonly record struct IrradianceCacheKey(
+        int X,
+        int Y,
+        int Z,
+        BlockFace Face,
+        int U,
+        int V);
+
+    private readonly record struct IrradianceCacheEntry(
+        Vector3 Irradiance,
+        Vector3 BentNormal,
+        float AmbientOcclusion,
+        int SampleCount);
 }
 
 public readonly struct LightingResult

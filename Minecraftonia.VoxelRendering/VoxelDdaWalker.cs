@@ -114,6 +114,18 @@ internal struct VoxelDdaWalker<TBlock>
         _stepsTaken = 0;
     }
 
+    public VoxelDdaWalker(
+        VoxelWorld<TBlock> world,
+        Vector3 origin,
+        Vector3 direction,
+        float maxDistance,
+        int maxSteps,
+        ref VoxelWorld<TBlock>.BlockAccessCache sharedCache)
+        : this(world, origin, direction, maxDistance, maxSteps)
+    {
+        _cache = sharedCache;
+    }
+
     public bool TryStep(out VoxelDdaHit<TBlock> hit)
     {
         hit = default;
@@ -241,5 +253,10 @@ internal struct VoxelDdaWalker<TBlock>
     private static int FloorToInt(float value)
     {
         return value >= 0f ? (int)value : (int)MathF.Floor(value);
+    }
+
+    public void CopyCacheTo(ref VoxelWorld<TBlock>.BlockAccessCache cache)
+    {
+        cache = _cache;
     }
 }
