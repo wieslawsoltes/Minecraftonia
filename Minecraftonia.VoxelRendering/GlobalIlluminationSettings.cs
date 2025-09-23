@@ -19,7 +19,8 @@ public readonly record struct GlobalIlluminationSettings(
     float SunIntensity = 1.45f,
     Vector3 AmbientLight = default,
     bool UseBentNormalForAmbient = true,
-    int MaxSecondarySteps = 96)
+    int MaxSecondarySteps = 96,
+    bool EnableSunVisibilityCache = true)
 {
     public static GlobalIlluminationSettings Default => new(
         Enabled: true,
@@ -38,5 +39,6 @@ public readonly record struct GlobalIlluminationSettings(
         SunIntensity: 1.45f,
         AmbientLight: new Vector3(0.16f, 0.19f, 0.24f),
         UseBentNormalForAmbient: true,
-        MaxSecondarySteps: 96);
+        MaxSecondarySteps: 96,
+        EnableSunVisibilityCache: true);
 }

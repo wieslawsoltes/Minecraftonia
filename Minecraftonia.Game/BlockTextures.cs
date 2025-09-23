@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.VoxelEngine;
@@ -9,7 +8,11 @@ namespace Minecraftonia.Game;
 
 public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
 {
-    private readonly Dictionary<(BlockType block, BlockFace face), BlockTexture> _textures = new();
+    private const int FaceCount = 6;
+    private const int BlockTypeCount = (int)BlockType.Leaves + 1;
+
+    private readonly BlockTexture?[] _textureTable = new BlockTexture?[BlockTypeCount * FaceCount];
+    private readonly BlockTexture?[] _fallbackTextures = new BlockTexture?[BlockTypeCount];
 
     public BlockTextures()
     {
@@ -78,10 +81,7 @@ public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
 
     public VoxelMaterialSample Sample(BlockType type, BlockFace face, float u, float v)
     {
-        if (!_textures.TryGetValue((type, face), out var texture))
-        {
-            texture = _textures[(type, BlockFace.PositiveY)];
-        }
+        BlockTexture texture = GetTexture(type, face);
 
         Vector4 sample = texture.Sample(u, v);
         Vector3 color = new(sample.X, sample.Y, sample.Z);
@@ -107,7 +107,45 @@ public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
 
     private void Register(BlockType block, BlockFace face, BlockTexture texture)
     {
-        _textures[(block, face)] = texture;
+        int blockIndex = (int)block;
+        int faceIndex = FaceToIndex(face);
+        _textureTable[blockIndex * FaceCount + faceIndex] = texture;
+
+        if (face == BlockFace.PositiveY || _fallbackTextures[blockIndex] is null)
+        {
+            _fallbackTextures[blockIndex] = texture;
+        }
+    }
+
+    private BlockTexture GetTexture(BlockType block, BlockFace face)
+    {
+        int blockIndex = (int)block;
+        int faceIndex = FaceToIndex(face);
+        int tableIndex = blockIndex * FaceCount + faceIndex;
+
+        BlockTexture? texture = _textureTable[tableIndex];
+        if (texture is null)
+        {
+            texture = _fallbackTextures[blockIndex]
+                      ?? throw new InvalidOperationException($"Missing texture for {block} on face {face}.");
+            _textureTable[tableIndex] = texture;
+        }
+
+        return texture;
+    }
+
+    private static int FaceToIndex(BlockFace face)
+    {
+        return face switch
+        {
+            BlockFace.NegativeX => 0,
+            BlockFace.PositiveX => 1,
+            BlockFace.NegativeY => 2,
+            BlockFace.PositiveY => 3,
+            BlockFace.NegativeZ => 4,
+            BlockFace.PositiveZ => 5,
+            _ => throw new ArgumentOutOfRangeException(nameof(face), face, "Unsupported face value.")
+        };
     }
 
     private static BlockTexture CreateGrassTop(Random random)

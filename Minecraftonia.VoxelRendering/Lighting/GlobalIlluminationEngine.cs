@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Numerics;
 using System.Runtime.Intrinsics;
 using Minecraftonia.VoxelEngine;
@@ -26,6 +27,8 @@ public sealed class GlobalIlluminationEngine<TBlock>
     private readonly Vector3 _ambientLight;
     private readonly bool _useBentNormal;
     private readonly int _maxRaymarchSteps;
+    private readonly bool _sunVisibilityCacheEnabled;
+    private readonly ConcurrentDictionary<SunVisibilityCacheKey, float> _sunVisibilityCache = new();
 
     public GlobalIlluminationEngine(
         GlobalIlluminationSettings settings,
@@ -54,17 +57,29 @@ public sealed class GlobalIlluminationEngine<TBlock>
         _ambientLight = Vector3.Clamp(settings.AmbientLight, Vector3.Zero, new Vector3(4f));
         _useBentNormal = settings.UseBentNormalForAmbient;
         _maxRaymarchSteps = Math.Clamp(settings.MaxSecondarySteps, 16, 256);
+        _sunVisibilityCacheEnabled = settings.EnableSunVisibilityCache;
     }
 
-    public LightingResult ComputeLighting(
+    internal void BeginFrame()
+    {
+        if (_sunVisibilityCacheEnabled)
+        {
+            _sunVisibilityCache.Clear();
+        }
+    }
+
+    internal LightingResult ComputeLighting(
         VoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
+        in VoxelDdaHit<TBlock> hit,
         Vector3 hitPoint,
-        Vector3 normal,
-        BlockFace face,
+        Vector2 uv,
         VoxelMaterialSample material,
         int bounceDepth)
     {
+        BlockFace face = hit.Face;
+        Vector3 normal = VoxelLightingMath.FaceToNormal(face);
+
         Vector3 direct = Vector3.Zero;
         if (_sunIntensity > 0f)
         {
@@ -72,7 +87,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
             if (ndotl > 0f)
             {
                 Vector3 shadowOrigin = hitPoint + normal * _shadowBias;
-                float visibility = ComputeSunVisibility(world, materials, shadowOrigin, _sunDirection);
+                float visibility = ComputeSunVisibility(world, materials, shadowOrigin, _sunDirection, in hit, uv);
                 direct = _sunColor * (ndotl * _sunIntensity * visibility);
             }
         }
@@ -105,6 +120,30 @@ public sealed class GlobalIlluminationEngine<TBlock>
         VoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
         Vector3 origin,
+        Vector3 sunDirection,
+        in VoxelDdaHit<TBlock> hit,
+        Vector2 uv)
+    {
+        var key = new SunVisibilityCacheKey(
+            hit.VoxelX,
+            hit.VoxelY,
+            hit.VoxelZ,
+            hit.Face,
+            QuantizeUv(uv.X),
+            QuantizeUv(uv.Y));
+
+        if (!_sunVisibilityCacheEnabled)
+        {
+            return ComputeSunVisibilityInternal(world, materials, origin, sunDirection);
+        }
+
+        return _sunVisibilityCache.GetOrAdd(key, _ => ComputeSunVisibilityInternal(world, materials, origin, sunDirection));
+    }
+
+    private float ComputeSunVisibilityInternal(
+        VoxelWorld<TBlock> world,
+        IVoxelMaterialProvider<TBlock> materials,
+        Vector3 origin,
         Vector3 sunDirection)
     {
         if (_sunShadowSoftness <= 0.05f)
@@ -128,6 +167,17 @@ public sealed class GlobalIlluminationEngine<TBlock>
         }
 
         return visibility / tapCount;
+    }
+
+    private static int QuantizeUv(float value)
+    {
+        if (float.IsNaN(value))
+        {
+            return 0;
+        }
+
+        int bucket = (int)MathF.Floor(value * 8f);
+        return Math.Clamp(bucket, 0, 7);
     }
 
     private float TraceVisibility(
@@ -341,6 +391,13 @@ public sealed class GlobalIlluminationEngine<TBlock>
         return hash;
     }
 
+    private readonly record struct SunVisibilityCacheKey(
+        int X,
+        int Y,
+        int Z,
+        BlockFace Face,
+        int U,
+        int V);
 }
 
 public readonly struct LightingResult

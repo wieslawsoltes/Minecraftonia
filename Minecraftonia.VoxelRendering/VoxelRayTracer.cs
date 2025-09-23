@@ -87,6 +87,8 @@ public sealed class VoxelRayTracer<TBlock>
 
         var fb = EnsureFramebuffer(framebuffer);
 
+        _giEngine?.BeginFrame();
+
         Vector3 forward = player.Forward;
         if (!float.IsFinite(forward.X + forward.Y + forward.Z) || forward.LengthSquared() < 0.0001f)
         {
@@ -234,8 +236,9 @@ public sealed class VoxelRayTracer<TBlock>
             Vector3 shaded = ComputeShading(
                 world,
                 materials,
+                in step,
                 hitPoint,
-                step.Face,
+                uv,
                 material,
                 bounceDepth: 0);
 
@@ -266,12 +269,14 @@ public sealed class VoxelRayTracer<TBlock>
     private Vector3 ComputeShading(
         VoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
+        in VoxelDdaHit<TBlock> hit,
         Vector3 hitPoint,
-        BlockFace face,
+        Vector2 uv,
         VoxelMaterialSample material,
         int bounceDepth)
     {
         Vector3 baseColor = Vector3.Clamp(material.Color, Vector3.Zero, new Vector3(4f));
+        BlockFace face = hit.Face;
         Vector3 normal = VoxelLightingMath.FaceToNormal(face);
 
         float legacyLight = VoxelLightingMath.GetFaceLight(face);
@@ -285,9 +290,9 @@ public sealed class VoxelRayTracer<TBlock>
         LightingResult lighting = _giEngine.ComputeLighting(
             world,
             materials,
+            in hit,
             hitPoint,
-            normal,
-            face,
+            uv,
             material,
             bounceDepth);
 
