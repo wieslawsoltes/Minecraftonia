@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.VoxelEngine;
 using Minecraftonia.VoxelRendering;
 

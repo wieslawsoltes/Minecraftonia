@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Minecraftonia.Game.MarkovJunior;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.WaveFunctionCollapse;
 
-internal sealed class WaveFunctionCollapseGenerator3D
+public sealed class WaveFunctionCollapseGenerator3D
 {
     private readonly VoxelPatternLibrary _library;
     private readonly int _gridSizeX;

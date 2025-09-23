@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using Minecraftonia.Game.MarkovJunior.Architecture;
+using Minecraftonia.WaveFunctionCollapse.Architecture;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.WaveFunctionCollapse;
 
-internal sealed class MacroBlueprint
+public sealed class MacroBlueprint
 {
     private readonly MacroBlueprintCell[,] _cells;
 
@@ -116,7 +116,7 @@ internal sealed class MacroBlueprint
     }
 }
 
-internal static class MacroBlueprintGenerator
+public static class MacroBlueprintGenerator
 {
     private static readonly (int dx, int dz)[] ClusterNeighborOffsets =
     {
@@ -285,7 +285,7 @@ internal static class MacroBlueprintGenerator
         }
     }
 
-    internal static IReadOnlyList<SettlementCluster> BuildSettlementClusters(MacroBlueprintCell[,] cells, int seed)
+    public static IReadOnlyList<SettlementCluster> BuildSettlementClusters(MacroBlueprintCell[,] cells, int seed)
     {
         int width = cells.GetLength(0);
         int depth = cells.GetLength(1);
@@ -542,7 +542,7 @@ internal static class MacroBlueprintGenerator
     private static double SmoothStep(double t) => t * t * (3 - 2 * t);
 }
 
-internal sealed class MacroBlueprintCell
+public sealed class MacroBlueprintCell
 {
     private readonly HashSet<string> _tags = new(StringComparer.OrdinalIgnoreCase);
 
@@ -569,7 +569,7 @@ internal sealed class MacroBlueprintCell
     }
 }
 
-internal sealed class SettlementCluster
+public sealed class SettlementCluster
 {
     private readonly List<(int X, int Z)> _cells = new();
 

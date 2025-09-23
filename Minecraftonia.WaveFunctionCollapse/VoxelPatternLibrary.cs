@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.WaveFunctionCollapse;
 
-internal enum VoxelDirection
+public enum VoxelDirection
 {
     PositiveX = 0,
     NegativeX = 1,
@@ -14,7 +14,7 @@ internal enum VoxelDirection
     NegativeZ = 5
 }
 
-internal static class VoxelDirectionExtensions
+public static class VoxelDirectionExtensions
 {
     public static VoxelDirection Opposite(this VoxelDirection direction) => direction switch
     {
@@ -28,7 +28,7 @@ internal static class VoxelDirectionExtensions
     };
 }
 
-internal sealed class VoxelPattern3D
+public sealed class VoxelPattern3D
 {
     private readonly List<string>[] _edgeTags = new List<string>[6];
     private readonly HashSet<string> _blueprintTags = new(StringComparer.OrdinalIgnoreCase);
@@ -106,7 +106,7 @@ internal sealed class VoxelPattern3D
     }
 }
 
-internal sealed class VoxelPatternLibrary
+public sealed class VoxelPatternLibrary
 {
     private readonly int[][][] _compatibility; // [direction][patternIndex] -> compatible patterns
 
@@ -186,35 +186,35 @@ internal sealed class VoxelPatternLibrary
     }
 }
 
-internal static class VoxelPatternLibraryFactory
+public static class VoxelPatternLibraryFactory
 {
     private const int TileSizeX = 8;
     private const int TileSizeZ = 8;
 
-    internal const string GrassTag = "grass";
-    internal const string ForestTag = "forest";
-    internal const string HillTag = "hill";
-    internal const string MountainTag = "mountain";
-    internal const string CliffTag = "cliff";
-    internal const string WaterTag = "water";
-    internal const string ShoreTag = "shore";
-    internal const string RiverNSTag = "river_ns";
-    internal const string RiverEWTag = "river_ew";
-    internal const string RiverBankTag = "river_bank";
-    internal const string RiverCornerTag = "river_corner";
-    internal const string WetlandTag = "wetland";
-    internal const string DesertTag = "desert";
+    public const string GrassTag = "grass";
+    public const string ForestTag = "forest";
+    public const string HillTag = "hill";
+    public const string MountainTag = "mountain";
+    public const string CliffTag = "cliff";
+    public const string WaterTag = "water";
+    public const string ShoreTag = "shore";
+    public const string RiverNSTag = "river_ns";
+    public const string RiverEWTag = "river_ew";
+    public const string RiverBankTag = "river_bank";
+    public const string RiverCornerTag = "river_corner";
+    public const string WetlandTag = "wetland";
+    public const string DesertTag = "desert";
 
-    internal const string BlueprintGrassland = "biome_grassland";
-    internal const string BlueprintForest = "biome_forest";
-    internal const string BlueprintWater = "biome_water";
-    internal const string BlueprintRiver = "biome_river";
-    internal const string BlueprintWetland = "biome_wetland";
-    internal const string BlueprintMountain = "biome_mountain";
-    internal const string BlueprintDesert = "biome_desert";
-    internal const string BlueprintHills = "biome_hills";
-    internal const string BlueprintShore = "biome_shore";
-    internal const string BlueprintSettlement = "biome_settlement";
+    public const string BlueprintGrassland = "biome_grassland";
+    public const string BlueprintForest = "biome_forest";
+    public const string BlueprintWater = "biome_water";
+    public const string BlueprintRiver = "biome_river";
+    public const string BlueprintWetland = "biome_wetland";
+    public const string BlueprintMountain = "biome_mountain";
+    public const string BlueprintDesert = "biome_desert";
+    public const string BlueprintHills = "biome_hills";
+    public const string BlueprintShore = "biome_shore";
+    public const string BlueprintSettlement = "biome_settlement";
 
     public static VoxelPatternLibrary CreateDefault(int worldHeight, int waterLevel)
     {

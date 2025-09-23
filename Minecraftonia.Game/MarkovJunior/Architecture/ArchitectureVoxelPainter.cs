@@ -1,5 +1,7 @@
 using System;
 using Minecraftonia.Game.MarkovJunior;
+using Minecraftonia.WaveFunctionCollapse;
+using Minecraftonia.WaveFunctionCollapse.Architecture;
 
 namespace Minecraftonia.Game.MarkovJunior.Architecture;
 

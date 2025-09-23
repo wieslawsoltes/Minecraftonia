@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.VoxelEngine;
 using Minecraftonia.VoxelRendering;
 

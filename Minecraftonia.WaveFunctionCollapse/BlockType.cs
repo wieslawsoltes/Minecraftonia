@@ -1,6 +1,4 @@
-using Minecraftonia.VoxelEngine;
-
-namespace Minecraftonia.Game;
+namespace Minecraftonia.WaveFunctionCollapse;
 
 public enum BlockType
 {

@@ -5,10 +5,11 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using Minecraftonia.WaveFunctionCollapse;
 
-namespace Minecraftonia.Game.OpenStreetMap;
+namespace Minecraftonia.OpenStreetMap;
 
-internal static class OpenStreetMapBlueprintGenerator
+public static class OpenStreetMapBlueprintGenerator
 {
     private const string OverpassInterpreterUrl = "https://overpass-api.de/api/interpreter";
     private static readonly HttpClient HttpClient = CreateHttpClient();
