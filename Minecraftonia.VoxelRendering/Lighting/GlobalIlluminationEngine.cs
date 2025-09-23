@@ -197,20 +197,25 @@ public sealed class GlobalIlluminationEngine<TBlock>
                             out Vector3 sampledBentNormal,
                             out int samplesTaken);
 
-                        Vector3 blendedGi = sampledGi;
                         float blendedAo = sampledAo;
                         Vector3 blendedBentNormal = sampledBentNormal;
+                        Vector3 blendedGi = sampledGi;
+                        int totalSamples = Math.Min(_sampleCount, Math.Max(samplesTaken, _adaptiveMinSamples));
 
                         if (previousEntry.HasValue)
                         {
-                        var previous = previousEntry.Value;
-                        blendedGi = Vector3.Lerp(previous.Irradiance, sampledGi, _temporalBlendFactor);
-                        blendedAo = Lerp(previous.AmbientOcclusion, sampledAo, _temporalBlendFactor);
-                        blendedBentNormal = BlendNormal(previous.BentNormal, sampledBentNormal, _temporalBlendFactor);
-                        samplesTaken = Math.Max(samplesTaken, previous.SampleCount);
+                            var previous = previousEntry.Value;
+                            float previousSamples = Math.Clamp(previous.SampleCount, 0, _sampleCount);
+                            float newSamples = Math.Max(1, samplesTaken);
+
+                            blendedGi = BlendIrradiance(previous.Irradiance, previousSamples, sampledGi, newSamples, _temporalBlendFactor);
+                            blendedAo = BlendScalar(previous.AmbientOcclusion, previousSamples, sampledAo, newSamples, _temporalBlendFactor);
+                            blendedBentNormal = BlendNormalWeighted(previous.BentNormal, previousSamples, sampledBentNormal, newSamples, _temporalBlendFactor);
+
+                            totalSamples = Math.Min(_sampleCount, (int)MathF.Round(previousSamples + newSamples));
                         }
 
-                        var entry = new IrradianceCacheEntry(blendedGi, blendedBentNormal, blendedAo, samplesTaken);
+                        var entry = new IrradianceCacheEntry(blendedGi, blendedBentNormal, blendedAo, totalSamples);
                         currentCache.AddOrUpdate(cacheKey, entry, (_, _) => entry);
 
                         ambientOcclusion = blendedAo;
@@ -224,16 +229,16 @@ public sealed class GlobalIlluminationEngine<TBlock>
                 int sampleBudget = GetSampleBudget(viewDistance, null, bounceDepth);
                 if (sampleBudget > 0)
                 {
-                gi = SampleGlobalIllumination(
-                    world,
-                    materials,
-                    hitPoint,
-                    normal,
-                    bounceDepth,
-                    sampleBudget,
-                    out ambientOcclusion,
-                    out bentNormal,
-                    out _);
+                    gi = SampleGlobalIllumination(
+                        world,
+                        materials,
+                        hitPoint,
+                        normal,
+                        bounceDepth,
+                        sampleBudget,
+                        out ambientOcclusion,
+                        out bentNormal,
+                        out _);
                 }
             }
         }
@@ -339,20 +344,90 @@ public sealed class GlobalIlluminationEngine<TBlock>
         return a + (b - a) * t;
     }
 
-    private static Vector3 BlendNormal(Vector3 a, Vector3 b, float t)
+    private static Vector3 BlendIrradiance(
+        Vector3 previous,
+        float previousSamples,
+        Vector3 current,
+        float newSamples,
+        float blendFactor)
     {
-        Vector3 blended = Vector3.Lerp(a, b, t);
-        if (blended.LengthSquared() > 1e-4f)
+        float previousWeight = previousSamples * Math.Clamp(1f - blendFactor, 0f, 1f);
+        float newWeight = newSamples * Math.Clamp(blendFactor, 0f, 1f);
+
+        if (previousWeight <= 1e-5f && newWeight <= 1e-5f)
         {
-            return Vector3.Normalize(blended);
+            return current;
         }
 
-        if (b.LengthSquared() > 1e-4f)
+        if (previousWeight <= 1e-5f)
         {
-            return Vector3.Normalize(b);
+            return current;
         }
 
-        return a.LengthSquared() > 1e-4f ? Vector3.Normalize(a) : Vector3.UnitY;
+        if (newWeight <= 1e-5f)
+        {
+            return previous;
+        }
+
+        float total = previousWeight + newWeight;
+        return (previous * previousWeight + current * newWeight) / total;
+    }
+
+    private static float BlendScalar(
+        float previous,
+        float previousSamples,
+        float current,
+        float newSamples,
+        float blendFactor)
+    {
+        float previousWeight = previousSamples * Math.Clamp(1f - blendFactor, 0f, 1f);
+        float newWeight = newSamples * Math.Clamp(blendFactor, 0f, 1f);
+
+        if (previousWeight <= 1e-5f && newWeight <= 1e-5f)
+        {
+            return current;
+        }
+
+        if (previousWeight <= 1e-5f)
+        {
+            return current;
+        }
+
+        if (newWeight <= 1e-5f)
+        {
+            return previous;
+        }
+
+        float total = previousWeight + newWeight;
+        return (previous * previousWeight + current * newWeight) / total;
+    }
+
+    private static Vector3 BlendNormalWeighted(
+        Vector3 previous,
+        float previousSamples,
+        Vector3 current,
+        float newSamples,
+        float blendFactor)
+    {
+        float previousWeight = previousSamples * Math.Clamp(1f - blendFactor, 0f, 1f);
+        float newWeight = newSamples * Math.Clamp(blendFactor, 0f, 1f);
+        Vector3 combined = previous * previousWeight + current * newWeight;
+        if (combined.LengthSquared() > 1e-5f)
+        {
+            return Vector3.Normalize(combined);
+        }
+
+        if (newWeight > previousWeight && current.LengthSquared() > 1e-5f)
+        {
+            return Vector3.Normalize(current);
+        }
+
+        if (previous.LengthSquared() > 1e-5f)
+        {
+            return Vector3.Normalize(previous);
+        }
+
+        return Vector3.UnitY;
     }
 
     private int GetSampleBudget(float viewDistance, IrradianceCacheEntry? previousEntry, int bounceDepth)
@@ -371,17 +446,19 @@ public sealed class GlobalIlluminationEngine<TBlock>
             target = Math.Max(_adaptiveMinSamples, target / (bounceDepth + 1));
         }
 
-        if (previousEntry.HasValue && _temporalBlendFactor > 0f)
+        if (previousEntry.HasValue)
         {
-            int previousSamples = Math.Max(previousEntry.Value.SampleCount, _adaptiveMinSamples);
+            int previousSamples = Math.Clamp(previousEntry.Value.SampleCount, 0, _sampleCount);
             if (previousSamples >= target)
             {
-                float reduction = 1f - Math.Clamp(_temporalBlendFactor * 0.6f, 0f, 0.75f);
-                target = Math.Max(_adaptiveMinSamples, (int)MathF.Round(target * reduction));
+                return 0;
             }
+
+            int remaining = target - previousSamples;
+            return Math.Clamp(Math.Max(1, remaining), 1, _sampleCount - previousSamples);
         }
 
-        return Math.Clamp(target, _adaptiveMinSamples, _sampleCount);
+        return target;
     }
 
     private VoxelDdaWalker<TBlock> CreateWalker(
