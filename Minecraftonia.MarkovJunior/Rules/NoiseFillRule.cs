@@ -1,8 +1,8 @@
 using System;
 
-namespace Minecraftonia.Game.MarkovJunior.Rules;
+namespace Minecraftonia.MarkovJunior.Rules;
 
-internal sealed class NoiseFillRule : MarkovRule
+public sealed class NoiseFillRule : MarkovRule
 {
     private readonly MarkovSymbol _symbol;
     private readonly double _threshold;

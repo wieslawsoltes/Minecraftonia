@@ -1,11 +1,11 @@
 using System;
 
-namespace Minecraftonia.Game.MarkovJunior.Rules;
+namespace Minecraftonia.MarkovJunior.Rules;
 
 /// <summary>
 /// Ensures that cells annotated with a tag are surrounded by specified neighbour tags (soft constraint).
 /// </summary>
-internal sealed class AdjacencyConstraintRule : MarkovRule
+public sealed class AdjacencyConstraintRule : MarkovRule
 {
     private readonly string _subjectTag;
     private readonly string[] _requiredNeighborTags;

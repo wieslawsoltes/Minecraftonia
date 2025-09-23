@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 
-namespace Minecraftonia.Game.MarkovJunior;
+namespace Minecraftonia.MarkovJunior;
 
 /// <summary>
 /// Maintains MarkovJunior symbols, metadata, and utility helpers for rule execution.
 /// </summary>
-internal sealed class MarkovJuniorState
+public sealed class MarkovJuniorState
 {
     private readonly MarkovSymbol[,,] _grid;
     private readonly HashSet<string>[,,] _cellTags;

@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 
-namespace Minecraftonia.Game.MarkovJunior;
+namespace Minecraftonia.MarkovJunior;
 
 /// <summary>
 /// Represents a symbol used by the MarkovJunior-inspired rule system.
 /// Symbols carry tags so rules can reason about semantics (e.g. street, wall, canopy).
 /// </summary>
-internal sealed class MarkovSymbol
+public sealed class MarkovSymbol
 {
     private readonly HashSet<string> _tags = new(StringComparer.OrdinalIgnoreCase);
 

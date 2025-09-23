@@ -1,11 +1,11 @@
 using System;
 
-namespace Minecraftonia.Game.MarkovJunior;
+namespace Minecraftonia.MarkovJunior;
 
 /// <summary>
 /// Base type for MarkovJunior-inspired rules. Each rule may mutate the grid and returns true when a change occurs.
 /// </summary>
-internal abstract class MarkovRule
+public abstract class MarkovRule
 {
     protected MarkovRule(string name)
     {

@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 
-namespace Minecraftonia.Game.MarkovJunior;
+namespace Minecraftonia.MarkovJunior;
 
 /// <summary>
 /// Groups rules into passes that execute in sequence, similar to MarkovJunior schedules.
 /// </summary>
-internal sealed class MarkovLayer
+public sealed class MarkovLayer
 {
     private readonly List<MarkovRule> _rules = new();
 

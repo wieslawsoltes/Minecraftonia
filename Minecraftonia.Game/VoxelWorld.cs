@@ -1,8 +1,8 @@
 using System;
 using System.Numerics;
-using Minecraftonia.Game.MarkovJunior.Architecture;
 using Minecraftonia.OpenStreetMap;
 using Minecraftonia.WaveFunctionCollapse;
+using Minecraftonia.MarkovJunior.Architecture;
 using Minecraftonia.VoxelEngine;
 
 namespace Minecraftonia.Game;

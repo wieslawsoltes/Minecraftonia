@@ -1,9 +1,9 @@
 using System;
 using Minecraftonia.WaveFunctionCollapse;
 
-namespace Minecraftonia.Game.MarkovJunior.Architecture;
+namespace Minecraftonia.MarkovJunior.Architecture;
 
-internal readonly struct ArchitectureClusterContext
+public readonly struct ArchitectureClusterContext
 {
     public ArchitectureClusterContext(SettlementCluster cluster, int tileSizeX, int tileSizeZ)
     {

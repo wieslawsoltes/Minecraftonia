@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 
-namespace Minecraftonia.Game.MarkovJunior;
+namespace Minecraftonia.MarkovJunior;
 
-internal sealed class MarkovJuniorEngine
+public sealed class MarkovJuniorEngine
 {
     private readonly List<MarkovLayer> _layers = new();
     private readonly Random _random;

@@ -1,9 +1,10 @@
 using System;
 using System.IO;
 using System.Text;
+using Minecraftonia.MarkovJunior;
 using Minecraftonia.WaveFunctionCollapse;
 
-namespace Minecraftonia.Game.MarkovJunior.Architecture;
+namespace Minecraftonia.MarkovJunior.Architecture;
 
 internal static class ArchitectureDebugExporter
 {

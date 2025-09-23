@@ -1,11 +1,11 @@
 using System;
 
-namespace Minecraftonia.Game.MarkovJunior.Rules;
+namespace Minecraftonia.MarkovJunior.Rules;
 
 /// <summary>
 /// Stamps a rectangular prism of symbols when a predicate matches the anchor cell.
 /// </summary>
-internal sealed class PatternStampRule : MarkovRule
+public sealed class PatternStampRule : MarkovRule
 {
     private readonly MarkovSymbol[,,] _pattern;
     private readonly Func<MarkovJuniorState, int, int, int, bool> _predicate;

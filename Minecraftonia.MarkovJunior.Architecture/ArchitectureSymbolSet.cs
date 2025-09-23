@@ -1,8 +1,9 @@
 using System.Collections.Generic;
+using Minecraftonia.MarkovJunior;
 
-namespace Minecraftonia.Game.MarkovJunior.Architecture;
+namespace Minecraftonia.MarkovJunior.Architecture;
 
-internal static class ArchitectureSymbolSet
+public static class ArchitectureSymbolSet
 {
     public static MarkovSymbol Floor { get; } = new MarkovSymbol("floor", paletteIndex: 1).WithTags("structure", "walkable");
     public static MarkovSymbol Wall { get; } = new MarkovSymbol("wall", paletteIndex: 2).WithTags("structure", "wall");

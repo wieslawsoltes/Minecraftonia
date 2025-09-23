@@ -1,15 +1,16 @@
 using System;
 using System.Collections.Generic;
+using Minecraftonia.MarkovJunior;
 using Minecraftonia.WaveFunctionCollapse.Architecture;
 
-namespace Minecraftonia.Game.MarkovJunior.Architecture;
+namespace Minecraftonia.MarkovJunior.Architecture;
 
-internal static class ArchitectureRuleSet
+public static class ArchitectureRuleSet
 {
     private const int StructureHeight = 5;
     private const string ClusterTag = "cluster";
     private const string EdgeTag = "cluster_edge";
-    internal const string MultiLevelTag = "multi_level";
+    public const string MultiLevelTag = "multi_level";
 
     public static MarkovJuniorState GenerateLayout(ArchitectureModuleType moduleType, ArchitectureClusterContext context, int seed)
     {

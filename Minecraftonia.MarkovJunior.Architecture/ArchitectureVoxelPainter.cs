@@ -1,11 +1,11 @@
 using System;
-using Minecraftonia.Game.MarkovJunior;
+using Minecraftonia.MarkovJunior;
 using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.WaveFunctionCollapse.Architecture;
 
-namespace Minecraftonia.Game.MarkovJunior.Architecture;
+namespace Minecraftonia.MarkovJunior.Architecture;
 
-internal static class ArchitectureVoxelPainter
+public static class ArchitectureVoxelPainter
 {
     private const int BaseStructureHeight = 5;
 
