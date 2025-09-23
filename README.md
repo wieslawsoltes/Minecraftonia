@@ -5,7 +5,7 @@ Minecraftonia is a work-in-progress voxel sandbox built with C# 13/.NET 9 and Av
 ## Features
 
 - **Custom voxel engine** – handcrafted player physics, block interactions, and chunkless world representation tuned for experimentation.
-- **Software ray tracing** – real-time voxel ray marcher that renders the world to a `WriteableBitmap`, producing a distinct stylised look without GPU shaders.
+- **Software ray tracing** – real-time voxel ray marcher that writes into a CPU framebuffer which can be presented either via the legacy Avalonia `WriteableBitmap` path or uploaded to a Skia `GRContext`-backed texture for crisp scaling without traditional GPU shaders.
 - **Procedural terrain generation** – layered noise, biome-inspired surface treatments, tree placement, and underground cave carving.
 - **Composable UI shell** – Avalonia-based menus with keyboard/mouse controls, full pointer capture, and configurable sensitivity/inversion.
 - **Save and resume** – JSON save files capture world blocks, player state, and palette selection for persistence between sessions.
@@ -123,7 +123,7 @@ Minecraftonia.sln
 
 1. `GameControl` gathers input (keyboard, mouse, pointer delta) each frame, marshals it into `GameInputState`, and calls `_game.Update`.
 2. `MinecraftoniaGame` applies look, movement, interactions, and updates the `MinecraftoniaVoxelWorld` accordingly.
-3. `VoxelRayTracer` renders the world into a `WriteableBitmap` which `GameControl.Render` blits to the Avalonia surface.
+3. `VoxelRayTracer` fills a reusable CPU framebuffer; `GameControl` then presents it using either the legacy `WriteableBitmap` pathway or the Skia texture-backed presenter, depending on the configured mode.
 4. HUD overlays draw palette status, FPS, crosshair, and block outlines on top of the framebuffer.
 5. Menu actions invoke `StartNewGame`, `LoadGame`, `CreateSaveData`, or pointer capture toggles, coordinating via dispatcher calls to maintain smooth focus changes.
 
