@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Numerics;
 using System.Threading.Tasks;
 using Avalonia;
@@ -87,6 +88,8 @@ public sealed class VoxelRayTracer<TBlock>
 
         var fb = EnsureFramebuffer(framebuffer);
 
+        _giEngine?.BeginFrame();
+
         Vector3 forward = player.Forward;
         if (!float.IsFinite(forward.X + forward.Y + forward.Z) || forward.LengthSquared() < 0.0001f)
         {
@@ -149,32 +152,41 @@ public sealed class VoxelRayTracer<TBlock>
                 return ApplyFog(sample, distance);
             }
 
-                Parallel.For(0, height, _parallelOptions, y =>
+                int tileHeight = Math.Max(1, height / (Math.Max(1, _parallelOptions.MaxDegreeOfParallelism) * 4));
+                var partitioner = Partitioner.Create(0, height, tileHeight);
+
+                Parallel.ForEach(partitioner, _parallelOptions, range =>
                 {
-                    byte* row = (byte*)(baseAddress + y * stride);
+                    int startY = range.Item1;
+                    int endY = range.Item2;
 
-                    for (int x = 0; x < width; x++)
+                    for (int y = startY; y < endY; y++)
                     {
-                        Vector4 firstSample = SamplePixel((x + _sampleOffsets[0].X) * invWidth, (y + _sampleOffsets[0].Y) * invHeight);
-                        Vector4 accum = firstSample;
-                        int sampleCount = 1;
+                        byte* row = (byte*)(baseAddress + y * stride);
 
-                        for (int i = 1; i < _samplesPerPixel && i < _sampleOffsets.Length; i++)
+                        for (int x = 0; x < width; x++)
                         {
-                            var offset = _sampleOffsets[i];
-                            Vector4 sample = SamplePixel((x + offset.X) * invWidth, (y + offset.Y) * invHeight);
-                            accum += sample;
-                            sampleCount++;
+                            Vector4 firstSample = SamplePixel((x + _sampleOffsets[0].X) * invWidth, (y + _sampleOffsets[0].Y) * invHeight);
+                            Vector4 accum = firstSample;
+                            int sampleCount = 1;
 
-                            if (Vector4.DistanceSquared(sample, firstSample) < 0.0005f)
+                            for (int i = 1; i < _samplesPerPixel && i < _sampleOffsets.Length; i++)
                             {
-                                break;
-                            }
-                        }
+                                var offset = _sampleOffsets[i];
+                                Vector4 sample = SamplePixel((x + offset.X) * invWidth, (y + offset.Y) * invHeight);
+                                accum += sample;
+                                sampleCount++;
 
-                        float invSamples = 1f / sampleCount;
-                        Vector4 averaged = accum * invSamples;
-                        WritePixel(row, x, averaged);
+                                if (Vector4.DistanceSquared(sample, firstSample) < 0.0005f)
+                                {
+                                    break;
+                                }
+                            }
+
+                            float invSamples = 1f / sampleCount;
+                            Vector4 averaged = accum * invSamples;
+                            WritePixel(row, x, averaged);
+                        }
                     }
                 });
 
@@ -234,8 +246,10 @@ public sealed class VoxelRayTracer<TBlock>
             Vector3 shaded = ComputeShading(
                 world,
                 materials,
+                in step,
                 hitPoint,
-                step.Face,
+                uv,
+                step.Distance,
                 material,
                 bounceDepth: 0);
 
@@ -266,12 +280,15 @@ public sealed class VoxelRayTracer<TBlock>
     private Vector3 ComputeShading(
         VoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
+        in VoxelDdaHit<TBlock> hit,
         Vector3 hitPoint,
-        BlockFace face,
+        Vector2 uv,
+        float viewDistance,
         VoxelMaterialSample material,
         int bounceDepth)
     {
         Vector3 baseColor = Vector3.Clamp(material.Color, Vector3.Zero, new Vector3(4f));
+        BlockFace face = hit.Face;
         Vector3 normal = VoxelLightingMath.FaceToNormal(face);
 
         float legacyLight = VoxelLightingMath.GetFaceLight(face);
@@ -285,9 +302,10 @@ public sealed class VoxelRayTracer<TBlock>
         LightingResult lighting = _giEngine.ComputeLighting(
             world,
             materials,
+            in hit,
             hitPoint,
-            normal,
-            face,
+            uv,
+            viewDistance,
             material,
             bounceDepth);
 

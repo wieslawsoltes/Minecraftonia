@@ -19,7 +19,13 @@ public readonly record struct GlobalIlluminationSettings(
     float SunIntensity = 1.45f,
     Vector3 AmbientLight = default,
     bool UseBentNormalForAmbient = true,
-    int MaxSecondarySteps = 96)
+    int MaxSecondarySteps = 96,
+    bool EnableSunVisibilityCache = false,
+    bool EnableIrradianceCache = false,
+    float TemporalBlendFactor = 0.35f,
+    int AdaptiveMinSamples = 4,
+    float AdaptiveStartDistance = 20f,
+    float AdaptiveEndDistance = 64f)
 {
     public static GlobalIlluminationSettings Default => new(
         Enabled: true,
@@ -38,5 +44,11 @@ public readonly record struct GlobalIlluminationSettings(
         SunIntensity: 1.45f,
         AmbientLight: new Vector3(0.16f, 0.19f, 0.24f),
         UseBentNormalForAmbient: true,
-        MaxSecondarySteps: 96);
+        MaxSecondarySteps: 96,
+        EnableSunVisibilityCache: false,
+        EnableIrradianceCache: false,
+        TemporalBlendFactor: 0.35f,
+        AdaptiveMinSamples: 4,
+        AdaptiveStartDistance: 20f,
+        AdaptiveEndDistance: 64f);
 }

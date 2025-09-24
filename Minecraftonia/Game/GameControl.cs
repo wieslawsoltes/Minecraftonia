@@ -62,7 +62,7 @@ public sealed class GameControl : Control
 
     private GlobalIlluminationSettings _giSettings;
     private const int GiSamplesMin = 0;
-    private const int GiSamplesMax = 24;
+    private const int GiSamplesMax = 1000;
 
     private readonly HashSet<PhysicalKey> _physicalKeysDown = new();
     private readonly HashSet<PhysicalKey> _physicalKeysPressed = new();
