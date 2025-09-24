@@ -50,7 +50,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
         _isEmpty = isEmpty ?? throw new ArgumentNullException(nameof(isEmpty));
         _sampleSky = sampleSky ?? throw new ArgumentNullException(nameof(sampleSky));
 
-        _sampleCount = Math.Clamp(settings.DiffuseSampleCount, 0, GlobalIlluminationSamples.HemisphereSamples128.Length);
+        _sampleCount = Math.Max(0, settings.DiffuseSampleCount);
         _bounceCount = Math.Max(0, settings.BounceCount);
         _maxDistance = Math.Clamp(settings.MaxDistance, 0.5f, maxRayDistance);
         _strength = MathF.Max(0f, settings.Strength);
@@ -71,7 +71,9 @@ public sealed class GlobalIlluminationEngine<TBlock>
         _sunVisibilityCacheEnabled = settings.EnableSunVisibilityCache;
         _irradianceCacheEnabled = settings.EnableIrradianceCache;
         _temporalBlendFactor = Math.Clamp(settings.TemporalBlendFactor, 0f, 1f);
-        _adaptiveMinSamples = Math.Clamp(settings.AdaptiveMinSamples, 1, _sampleCount);
+        _adaptiveMinSamples = _sampleCount > 0
+            ? Math.Clamp(Math.Max(1, settings.AdaptiveMinSamples), 1, _sampleCount)
+            : 0;
         _adaptiveStartDistance = MathF.Max(0f, settings.AdaptiveStartDistance);
         _adaptiveEndDistance = MathF.Max(_adaptiveStartDistance + 0.0001f, settings.AdaptiveEndDistance);
         _adaptiveInvRange = 1f / MathF.Max(_adaptiveEndDistance - _adaptiveStartDistance, 0.0001f);
@@ -561,15 +563,20 @@ public sealed class GlobalIlluminationEngine<TBlock>
         float totalWeight = 0f;
         float blockedWeight = 0f;
 
-        ReadOnlySpan<Vector3> samplePool = GlobalIlluminationSamples.HemisphereSamples128;
+        ReadOnlySpan<Vector3> samplePool = GlobalIlluminationSamples.GetHemisphereSamples(Math.Max(sampleCount, _sampleCount));
         int poolLength = samplePool.Length;
         int startIndex = (int)(hash % (uint)poolLength);
-        const int stride = 17;
+        int stride = poolLength switch
+        {
+            <= 128 => 17,
+            <= 512 => 53,
+            _ => 97
+        };
 
         float maxDistance = _maxDistance;
         int taken = 0;
 
-        int iterations = Math.Clamp(sampleCount, 0, _sampleCount);
+        int iterations = Math.Max(0, sampleCount);
 
         for (int i = 0; i < iterations; i++)
         {

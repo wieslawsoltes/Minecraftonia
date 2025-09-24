@@ -6,8 +6,27 @@ namespace Minecraftonia.VoxelRendering.Lighting;
 public static class GlobalIlluminationSamples
 {
     public static ReadOnlySpan<Vector3> HemisphereSamples128 => _hemisphereSamples128;
+    public static ReadOnlySpan<Vector3> HemisphereSamples512 => _hemisphereSamples512;
+    public static ReadOnlySpan<Vector3> HemisphereSamples1024 => _hemisphereSamples1024;
+
+    public static ReadOnlySpan<Vector3> GetHemisphereSamples(int requiredCount)
+    {
+        if (requiredCount <= _hemisphereSamples128.Length)
+        {
+            return _hemisphereSamples128;
+        }
+
+        if (requiredCount <= _hemisphereSamples512.Length)
+        {
+            return _hemisphereSamples512;
+        }
+
+        return _hemisphereSamples1024;
+    }
 
     private static readonly Vector3[] _hemisphereSamples128 = CreateHemisphereSamples(128);
+    private static readonly Vector3[] _hemisphereSamples512 = CreateHemisphereSamples(512);
+    private static readonly Vector3[] _hemisphereSamples1024 = CreateHemisphereSamples(1024);
 
     private static Vector3[] CreateHemisphereSamples(int count)
     {
