@@ -182,7 +182,7 @@ Files are JSON encoded `GameSaveData` objects. Corrupt or mismatched versions ar
 
 ## License
 
-Minecraftonia is released under the [GNU Affero General Public License v3.0](LICENSE).
+Minecraftonia is released under the [MIT](LICENSE).
 
 ## Credits
 
