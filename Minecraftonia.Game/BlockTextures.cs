@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.VoxelEngine;
@@ -9,7 +8,11 @@ namespace Minecraftonia.Game;
 
 public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
 {
-    private readonly Dictionary<(BlockType block, BlockFace face), BlockTexture> _textures = new();
+    private const int FaceCount = 6;
+    private const int BlockTypeCount = (int)BlockType.Leaves + 1;
+
+    private readonly BlockTexture?[] _textureTable = new BlockTexture?[BlockTypeCount * FaceCount];
+    private readonly BlockTexture?[] _fallbackTextures = new BlockTexture?[BlockTypeCount];
 
     public BlockTextures()
     {
@@ -78,14 +81,16 @@ public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
 
     public VoxelMaterialSample Sample(BlockType type, BlockFace face, float u, float v)
     {
-        if (!_textures.TryGetValue((type, face), out var texture))
-        {
-            texture = _textures[(type, BlockFace.PositiveY)];
-        }
+        BlockTexture texture = GetTexture(type, face);
 
         Vector4 sample = texture.Sample(u, v);
         Vector3 color = new(sample.X, sample.Y, sample.Z);
         float opacity = sample.W;
+
+        float roughness = 0.62f;
+        float metallic = 0f;
+        float specular = 0.045f;
+        Vector3 emission = Vector3.Zero;
 
         if (type.IsSolid())
         {
@@ -95,19 +100,88 @@ public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
         {
             opacity = MathF.Min(0.6f, opacity + 0.1f);
             color *= 0.85f;
+            roughness = 0.02f;
+            specular = 0.92f;
         }
         else if (type == BlockType.Leaves)
         {
             opacity = MathF.Min(0.65f, opacity);
+            roughness = 0.32f;
+            specular = 0.12f;
+        }
+
+        switch (type)
+        {
+            case BlockType.Grass:
+                roughness = face == BlockFace.PositiveY ? 0.38f : 0.56f;
+                specular = 0.055f;
+                break;
+            case BlockType.Dirt:
+                roughness = 0.72f;
+                specular = 0.03f;
+                break;
+            case BlockType.Stone:
+                roughness = 0.58f;
+                specular = 0.06f;
+                break;
+            case BlockType.Sand:
+                roughness = 0.68f;
+                specular = 0.035f;
+                break;
+            case BlockType.Wood:
+                roughness = face is BlockFace.PositiveY or BlockFace.NegativeY ? 0.46f : 0.52f;
+                specular = 0.07f;
+                break;
+            case BlockType.Leaves:
+                emission = new Vector3(0.02f, 0.015f, 0.01f);
+                break;
         }
 
         color = Vector3.Clamp(color, Vector3.Zero, Vector3.One);
-        return new VoxelMaterialSample(color, opacity);
+        return new VoxelMaterialSample(color, opacity, roughness, metallic, specular, emission);
     }
 
     private void Register(BlockType block, BlockFace face, BlockTexture texture)
     {
-        _textures[(block, face)] = texture;
+        int blockIndex = (int)block;
+        int faceIndex = FaceToIndex(face);
+        _textureTable[blockIndex * FaceCount + faceIndex] = texture;
+
+        if (face == BlockFace.PositiveY || _fallbackTextures[blockIndex] is null)
+        {
+            _fallbackTextures[blockIndex] = texture;
+        }
+    }
+
+    private BlockTexture GetTexture(BlockType block, BlockFace face)
+    {
+        int blockIndex = (int)block;
+        int faceIndex = FaceToIndex(face);
+        int tableIndex = blockIndex * FaceCount + faceIndex;
+
+        BlockTexture? texture = _textureTable[tableIndex];
+        if (texture is null)
+        {
+            texture = _fallbackTextures[blockIndex]
+                      ?? throw new InvalidOperationException($"Missing texture for {block} on face {face}.");
+            _textureTable[tableIndex] = texture;
+        }
+
+        return texture;
+    }
+
+    private static int FaceToIndex(BlockFace face)
+    {
+        return face switch
+        {
+            BlockFace.NegativeX => 0,
+            BlockFace.PositiveX => 1,
+            BlockFace.NegativeY => 2,
+            BlockFace.PositiveY => 3,
+            BlockFace.NegativeZ => 4,
+            BlockFace.PositiveZ => 5,
+            _ => throw new ArgumentOutOfRangeException(nameof(face), face, "Unsupported face value.")
+        };
     }
 
     private static BlockTexture CreateGrassTop(Random random)
