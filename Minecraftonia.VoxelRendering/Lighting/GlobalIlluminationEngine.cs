@@ -93,6 +93,8 @@ public sealed class GlobalIlluminationEngine<TBlock>
         _walkerCache = new ThreadLocal<VoxelWorld<TBlock>.BlockAccessCache>(() => new VoxelWorld<TBlock>.BlockAccessCache());
     }
 
+    internal Vector3 PrimaryLightDirection => _sunDirection;
+
     internal void BeginFrame()
     {
         if (_sunVisibilityCache is { } caches)

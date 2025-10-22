@@ -87,6 +87,11 @@ public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
         Vector3 color = new(sample.X, sample.Y, sample.Z);
         float opacity = sample.W;
 
+        float roughness = 0.62f;
+        float metallic = 0f;
+        float specular = 0.045f;
+        Vector3 emission = Vector3.Zero;
+
         if (type.IsSolid())
         {
             opacity = 1f;
@@ -95,14 +100,45 @@ public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
         {
             opacity = MathF.Min(0.6f, opacity + 0.1f);
             color *= 0.85f;
+            roughness = 0.02f;
+            specular = 0.92f;
         }
         else if (type == BlockType.Leaves)
         {
             opacity = MathF.Min(0.65f, opacity);
+            roughness = 0.32f;
+            specular = 0.12f;
+        }
+
+        switch (type)
+        {
+            case BlockType.Grass:
+                roughness = face == BlockFace.PositiveY ? 0.38f : 0.56f;
+                specular = 0.055f;
+                break;
+            case BlockType.Dirt:
+                roughness = 0.72f;
+                specular = 0.03f;
+                break;
+            case BlockType.Stone:
+                roughness = 0.58f;
+                specular = 0.06f;
+                break;
+            case BlockType.Sand:
+                roughness = 0.68f;
+                specular = 0.035f;
+                break;
+            case BlockType.Wood:
+                roughness = face is BlockFace.PositiveY or BlockFace.NegativeY ? 0.46f : 0.52f;
+                specular = 0.07f;
+                break;
+            case BlockType.Leaves:
+                emission = new Vector3(0.02f, 0.015f, 0.01f);
+                break;
         }
 
         color = Vector3.Clamp(color, Vector3.Zero, Vector3.One);
-        return new VoxelMaterialSample(color, opacity);
+        return new VoxelMaterialSample(color, opacity, roughness, metallic, specular, emission);
     }
 
     private void Register(BlockType block, BlockFace face, BlockTexture texture)

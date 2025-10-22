@@ -12,6 +12,7 @@ public sealed class VoxelRayTracer<TBlock>
 {
     public const float DefaultMaxTraceDistance = 90f;
     private const float MaxDistance = DefaultMaxTraceDistance;
+    private const float InvPi = 1f / MathF.PI;
 
     private readonly PixelSize _renderSize;
     private readonly float _fieldOfViewDegrees;
@@ -251,6 +252,7 @@ public sealed class VoxelRayTracer<TBlock>
                 uv,
                 step.Distance,
                 material,
+                direction,
                 bounceDepth: 0);
 
             accumColor += (1f - accumAlpha) * opacity * shaded;
@@ -272,7 +274,7 @@ public sealed class VoxelRayTracer<TBlock>
             hitDistance = Math.Min(hitDistance, MaxDistance);
         }
 
-        accumColor = Vector3.Clamp(accumColor, Vector3.Zero, Vector3.One);
+        accumColor = Vector3.Clamp(accumColor, Vector3.Zero, new Vector3(16f));
         outDistance = hitDistance;
         return new Vector4(accumColor, 1f);
     }
@@ -285,18 +287,35 @@ public sealed class VoxelRayTracer<TBlock>
         Vector2 uv,
         float viewDistance,
         VoxelMaterialSample material,
+        Vector3 viewDirection,
         int bounceDepth)
     {
-        Vector3 baseColor = Vector3.Clamp(material.Color, Vector3.Zero, new Vector3(4f));
+        Vector3 baseColor = Vector3.Clamp(material.Albedo, Vector3.Zero, new Vector3(4f));
         BlockFace face = hit.Face;
-        Vector3 normal = VoxelLightingMath.FaceToNormal(face);
+        Vector3 baseNormal = VoxelLightingMath.FaceToNormal(face);
+        Vector3 normal = material.HasShadingNormal
+            ? Vector3.Normalize(TransformLocalNormal(face, material.ShadingNormal))
+            : baseNormal;
 
-        float legacyLight = VoxelLightingMath.GetFaceLight(face);
-        Vector3 legacyTerm = baseColor * legacyLight;
+        if (!float.IsFinite(normal.X + normal.Y + normal.Z) || normal.LengthSquared() < 1e-6f)
+        {
+            normal = baseNormal;
+        }
+
+        Vector3 viewDir = Vector3.Normalize(-viewDirection);
+        if (!float.IsFinite(viewDir.X + viewDir.Y + viewDir.Z) || viewDir.LengthSquared() < 1e-6f)
+        {
+            viewDir = -baseNormal;
+        }
+
+        float faceLight = VoxelLightingMath.GetFaceLight(face);
+        Vector3 legacyTerm = baseColor * faceLight;
+        Vector3 emission = Vector3.Clamp(material.Emissive, Vector3.Zero, new Vector3(32f));
 
         if (_giEngine is null)
         {
-            return Vector3.Clamp(legacyTerm, Vector3.Zero, Vector3.One);
+            Vector3 legacy = legacyTerm + emission;
+            return Vector3.Clamp(legacy, Vector3.Zero, new Vector3(16f));
         }
 
         LightingResult lighting = _giEngine.ComputeLighting(
@@ -309,11 +328,144 @@ public sealed class VoxelRayTracer<TBlock>
             material,
             bounceDepth);
 
-        Vector3 advancedLighting = lighting.CombinedLighting;
-        Vector3 advanced = Vector3.Clamp(baseColor * advancedLighting, Vector3.Zero, new Vector3(4f));
+        Vector3 directLight = lighting.Direct;
+        Vector3 ambientLight = lighting.Ambient;
+        Vector3 indirectLight = lighting.Indirect * lighting.AmbientOcclusion;
 
-        Vector3 combined = Vector3.Lerp(legacyTerm, advanced, 0.85f);
-        return Vector3.Clamp(combined, Vector3.Zero, Vector3.One);
+        float roughness = Math.Clamp(material.Roughness, 0.02f, 1f);
+        float metallic = Math.Clamp(material.Metallic, 0f, 1f);
+        float specularStrength = Math.Clamp(material.Specular, 0f, 1f);
+
+        Vector3 f0 = Vector3.Lerp(new Vector3(specularStrength), baseColor, metallic);
+        float ndotv = MathF.Max(0.001f, Vector3.Dot(normal, viewDir));
+
+        Vector3 color = Vector3.Zero;
+
+        if (directLight.LengthSquared() > 1e-8f)
+        {
+            Vector3 lightDir = _giEngine.PrimaryLightDirection;
+            lightDir = Vector3.Normalize(lightDir);
+            float ndotl = MathF.Max(0f, Vector3.Dot(normal, lightDir));
+            if (ndotl > 0f)
+            {
+                Vector3 halfVector = lightDir + viewDir;
+                float halfLengthSq = halfVector.LengthSquared();
+                if (halfLengthSq > 1e-6f)
+                {
+                    halfVector *= MathF.ReciprocalSqrtEstimate(halfLengthSq);
+                }
+                else
+                {
+                    halfVector = normal;
+                }
+                float ndoth = MathF.Max(0f, Vector3.Dot(normal, halfVector));
+                float vdoth = MathF.Max(0f, Vector3.Dot(viewDir, halfVector));
+
+                float a = roughness * roughness;
+                float a2 = a * a;
+                float denom = ndoth * ndoth * (a2 - 1f) + 1f;
+                float d = a2 / MathF.Max(MathF.PI * denom * denom, 1e-4f);
+
+                float k = (roughness + 1f);
+                k = (k * k) / 8f;
+                float gl = ndotl / (ndotl * (1f - k) + k);
+                float gv = ndotv / (ndotv * (1f - k) + k);
+                float g = gl * gv;
+
+                Vector3 fresnel = FresnelSchlick(vdoth, f0);
+                Vector3 kd = (Vector3.One - fresnel) * (1f - metallic);
+
+                float specFactor = d * g / MathF.Max(4f * ndotv * ndotl, 1e-4f);
+                Vector3 specular = directLight * (fresnel * specFactor);
+                Vector3 diffuse = directLight * kd * InvPi;
+
+                color += diffuse + specular;
+            }
+        }
+
+        Vector3 environmentIrradiance = ambientLight + indirectLight;
+        Vector3 ambientF = FresnelSchlickRoughness(ndotv, f0, roughness);
+        Vector3 kdAmbient = (Vector3.One - ambientF) * (1f - metallic);
+        Vector3 ambientDiffuse = environmentIrradiance * kdAmbient * InvPi;
+        Vector3 specularIbl = ApproximateSpecularIbl(f0, roughness, environmentIrradiance, lighting.AmbientOcclusion);
+
+        color += ambientDiffuse + specularIbl;
+        color += emission;
+
+        Vector3 physicallyBased = Vector3.Clamp(color, Vector3.Zero, new Vector3(16f));
+        Vector3 combined = Vector3.Lerp(legacyTerm, physicallyBased, 0.9f);
+        return Vector3.Clamp(combined, Vector3.Zero, new Vector3(16f));
+    }
+
+    private static Vector3 TransformLocalNormal(BlockFace face, Vector3 localNormal)
+    {
+        return face switch
+        {
+            BlockFace.PositiveX => new Vector3(localNormal.Z, localNormal.Y, -localNormal.X),
+            BlockFace.NegativeX => new Vector3(-localNormal.Z, localNormal.Y, localNormal.X),
+            BlockFace.PositiveY => new Vector3(localNormal.X, localNormal.Z, localNormal.Y),
+            BlockFace.NegativeY => new Vector3(localNormal.X, -localNormal.Z, -localNormal.Y),
+            BlockFace.PositiveZ => new Vector3(localNormal.X, localNormal.Y, localNormal.Z),
+            BlockFace.NegativeZ => new Vector3(-localNormal.X, localNormal.Y, -localNormal.Z),
+            _ => localNormal
+        };
+    }
+
+    private static Vector3 FresnelSchlick(float cosine, Vector3 f0)
+    {
+        float m = Math.Clamp(1f - cosine, 0f, 1f);
+        float factor = MathF.Pow(m, 5f);
+        return f0 + (Vector3.One - f0) * factor;
+    }
+
+    private static Vector3 FresnelSchlickRoughness(float cosine, Vector3 f0, float roughness)
+    {
+        float m = Math.Clamp(1f - cosine, 0f, 1f);
+        float factor = MathF.Pow(m, 5f) * (1f - roughness);
+        return f0 + (Vector3.One - f0) * factor;
+    }
+
+    private static Vector3 ApproximateSpecularIbl(Vector3 f0, float roughness, Vector3 irradiance, float ambientOcclusion)
+    {
+        float smoothness = 1f - Math.Clamp(roughness, 0.02f, 1f);
+        float reflectivity = 0.5f + 0.5f * smoothness;
+        float ao = Math.Clamp(ambientOcclusion, 0.2f, 1f);
+        Vector3 fresnel = f0 + (Vector3.One - f0) * MathF.Pow(1f - smoothness, 5f);
+        Vector3 spec = irradiance * fresnel * reflectivity * ao;
+        return Vector3.Clamp(spec, Vector3.Zero, new Vector3(16f));
+    }
+
+    private static Vector3 TonemapAces(Vector3 color)
+    {
+        const float a = 2.51f;
+        const float b = 0.03f;
+        const float c = 2.43f;
+        const float d = 0.59f;
+        const float e = 0.14f;
+
+        Vector3 numerator = color * (a * color + new Vector3(b));
+        Vector3 denominator = color * (c * color + new Vector3(d)) + new Vector3(e);
+        Vector3 mapped = numerator / Vector3.Max(denominator, new Vector3(1e-4f));
+        return Vector3.Clamp(mapped, Vector3.Zero, Vector3.One);
+    }
+
+    private static Vector3 LinearToSrgb(Vector3 color)
+    {
+        return new Vector3(
+            LinearToSrgb(color.X),
+            LinearToSrgb(color.Y),
+            LinearToSrgb(color.Z));
+    }
+
+    private static float LinearToSrgb(float value)
+    {
+        value = Math.Clamp(value, 0f, 1f);
+        if (value <= 0.0031308f)
+        {
+            return value * 12.92f;
+        }
+
+        return 1.055f * MathF.Pow(value, 1f / 2.4f) - 0.055f;
     }
 
 
@@ -509,25 +661,35 @@ public sealed class VoxelRayTracer<TBlock>
     private static Vector3 SampleSky(Vector3 direction)
     {
         direction = Vector3.Normalize(direction);
+
         float t = Math.Clamp(direction.Y * 0.5f + 0.5f, 0f, 1f);
-        Vector3 horizon = new(0.78f, 0.87f, 0.95f);
-        Vector3 zenith = new(0.18f, 0.32f, 0.58f);
+        Vector3 horizon = new(0.62f, 0.72f, 0.86f);
+        Vector3 zenith = new(0.08f, 0.19f, 0.42f);
         Vector3 sky = Vector3.Lerp(horizon, zenith, t);
 
-        Vector3 sunDirection = Vector3.Normalize(new Vector3(-0.35f, 0.88f, 0.25f));
-        float sunFactor = MathF.Max(0f, Vector3.Dot(direction, sunDirection));
-        float sunGlow = MathF.Pow(sunFactor, 32f) * 0.35f;
-        sky += new Vector3(1f, 0.93f, 0.78f) * sunGlow;
+        float horizonGlow = MathF.Exp(-MathF.Abs(direction.Y) * 4f) * 0.25f;
+        sky += new Vector3(0.38f, 0.28f, 0.2f) * horizonGlow;
 
-        return Vector3.Clamp(sky, Vector3.Zero, Vector3.One);
+        Vector3 sunDirection = Vector3.Normalize(new Vector3(-0.35f, 0.88f, 0.25f));
+        float sunDot = MathF.Max(0f, Vector3.Dot(direction, sunDirection));
+        float sunGlow = MathF.Pow(sunDot, 18f) * 2.5f;
+        float sunDisk = MathF.Exp(-MathF.Pow(MathF.Acos(Math.Clamp(sunDot, -1f, 1f)), 2f) * 220f) * 28f;
+        Vector3 sunColor = new(1.18f, 1.05f, 0.86f);
+        sky += sunColor * (sunGlow + sunDisk);
+
+        sky += new Vector3(0.015f, 0.02f, 0.03f);
+
+        return Vector3.Clamp(sky, Vector3.Zero, new Vector3(64f));
     }
 
     private static unsafe void WritePixel(byte* row, int x, Vector4 color)
     {
         float alpha = Math.Clamp(color.W, 0f, 1f);
         Vector3 rgb = new(color.X, color.Y, color.Z);
-        rgb = Vector3.Clamp(rgb, Vector3.Zero, Vector3.One);
-        Vector3 premul = rgb * alpha;
+        rgb = Vector3.Clamp(rgb, Vector3.Zero, new Vector3(32f));
+        Vector3 tonemapped = TonemapAces(rgb);
+        Vector3 encoded = LinearToSrgb(tonemapped);
+        Vector3 premul = encoded * alpha;
 
         int index = x * 4;
         row[index + 0] = (byte)(premul.Z * 255f);
