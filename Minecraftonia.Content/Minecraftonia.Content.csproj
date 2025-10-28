@@ -4,6 +4,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageDescription>Prebuilt voxel assets, textures, and definitions for Minecraftonia based applications.</PackageDescription>
+    <UseMinecraftoniaPackaging>true</UseMinecraftoniaPackaging>
   </PropertyGroup>
 
   <ItemGroup>

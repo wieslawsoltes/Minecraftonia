@@ -4,6 +4,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageDescription>Hosting infrastructure, service registration, and lifecycle helpers for Minecraftonia applications.</PackageDescription>
+    <UseMinecraftoniaPackaging>true</UseMinecraftoniaPackaging>
   </PropertyGroup>
 
   <ItemGroup>

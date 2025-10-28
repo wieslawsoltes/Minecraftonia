@@ -4,6 +4,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageDescription>OpenStreetMap integration helpers for importing real world data into Minecraftonia worlds.</PackageDescription>
+    <UseMinecraftoniaPackaging>true</UseMinecraftoniaPackaging>
   </PropertyGroup>
 
   <ItemGroup>

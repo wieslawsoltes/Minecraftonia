@@ -4,6 +4,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageDescription>High performance voxel engine primitives powering Minecraftonia worlds.</PackageDescription>
+    <UseMinecraftoniaPackaging>true</UseMinecraftoniaPackaging>
   </PropertyGroup>
 
 </Project>

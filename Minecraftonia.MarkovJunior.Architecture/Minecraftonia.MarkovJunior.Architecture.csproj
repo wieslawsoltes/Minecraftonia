@@ -4,6 +4,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageDescription>Building blocks for procedural architecture generation powered by Markov Junior.</PackageDescription>
+    <UseMinecraftoniaPackaging>true</UseMinecraftoniaPackaging>
   </PropertyGroup>
 
   <ItemGroup>
