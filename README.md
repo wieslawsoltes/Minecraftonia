@@ -2,6 +2,8 @@
 
 Minecraftonia is a work-in-progress voxel sandbox built with C# 13/.NET 9 and Avalonia. The project experiments with custom voxel ray tracing, procedural terrain, and responsive desktop UI while staying fully cross-platform.
 
+https://github.com/user-attachments/assets/7d2c04ab-40cb-4eb7-9b3a-8634d4ab98ed
+
 ## NuGet packages
 
 | Package | Version | Downloads | Description |
