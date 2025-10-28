@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Minecraftonia.Core;
 using Minecraftonia.OpenStreetMap;
 using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.MarkovJunior.Architecture;

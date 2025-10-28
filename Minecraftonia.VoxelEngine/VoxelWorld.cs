@@ -4,33 +4,9 @@ using System.Numerics;
 
 namespace Minecraftonia.VoxelEngine;
 
-public abstract class VoxelWorld<TBlock>
+public abstract class VoxelWorld<TBlock> : IVoxelWorld<TBlock>
 {
     private readonly Dictionary<ChunkCoordinate, VoxelChunk<TBlock>> _chunks = new();
-
-    public struct BlockAccessCache
-    {
-        private ChunkCoordinate _coordinate;
-        private VoxelChunk<TBlock>? _chunk;
-        private TBlock[]? _blocks;
-
-        internal ChunkCoordinate Coordinate => _coordinate;
-        internal VoxelChunk<TBlock>? Chunk => _chunk;
-        internal TBlock[]? Blocks => _blocks;
-        public bool IsValid => _chunk is not null;
-
-        internal void SetChunk(VoxelChunk<TBlock> chunk)
-        {
-            _chunk = chunk;
-            _coordinate = chunk.Coordinate;
-            _blocks = chunk.RawBlocks;
-        }
-
-        internal bool Matches(ChunkCoordinate coordinate)
-        {
-            return _chunk is not null && coordinate == _coordinate;
-        }
-    }
 
     protected VoxelWorld(ChunkDimensions chunkSize, int chunkCountX, int chunkCountY, int chunkCountZ)
     {
@@ -81,7 +57,7 @@ public abstract class VoxelWorld<TBlock>
         return chunk.GetBlock(localX, localY, localZ);
     }
 
-    public TBlock GetBlock(int x, int y, int z, ref BlockAccessCache cache)
+    public TBlock GetBlock(int x, int y, int z, ref VoxelBlockAccessCache<TBlock> cache)
     {
         if (!InBounds(x, y, z))
         {
@@ -129,7 +105,7 @@ public abstract class VoxelWorld<TBlock>
         int localX,
         int localY,
         int localZ,
-        ref BlockAccessCache cache)
+        ref VoxelBlockAccessCache<TBlock> cache)
     {
         if (chunkX < 0 || chunkX >= ChunkCountX ||
             chunkY < 0 || chunkY >= ChunkCountY ||

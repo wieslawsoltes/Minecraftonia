@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Minecraftonia.WaveFunctionCollapse;
+using Minecraftonia.Core;
 using Minecraftonia.VoxelEngine;
 using Minecraftonia.VoxelRendering;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.Content;
 
 public sealed class BlockTextures : IVoxelMaterialProvider<BlockType>
 {

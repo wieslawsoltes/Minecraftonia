@@ -43,6 +43,12 @@ jobs:
       - name: Restore
         run: dotnet restore Minecraftonia.sln
 
+      - name: Build solution
+        run: dotnet build Minecraftonia.sln
+
+      - name: Build sample app
+        run: dotnet build samples/Minecraftonia.Sample.BasicBlock/Minecraftonia.Sample.BasicBlock.csproj -c Release
+
       - name: Publish
         run: dotnet publish Minecraftonia/Minecraftonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish/${{ matrix.rid }}
 

@@ -7,16 +7,16 @@ using Avalonia.Skia;
 using Minecraftonia.VoxelRendering;
 using SkiaSharp;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.Rendering.Avalonia.Presenters;
 
-internal sealed class SkiaTextureFramePresenter : IVoxelFramePresenter
+public sealed class SkiaTextureFramePresenter : IVoxelFramePresenter
 {
     private GRContext? _grContext;
     private SKSurface? _surface;
-    private PixelSize _size;
+    private VoxelSize _size;
     private readonly SKPaint _paint = new() { FilterQuality = SKFilterQuality.None, IsAntialias = false };
 
-    public void Render(DrawingContext context, VoxelFrameBuffer framebuffer, Rect destination)
+    public void Render(DrawingContext context, IVoxelFrameBuffer framebuffer, Rect destination)
     {
         if (framebuffer is null || framebuffer.IsDisposed)
         {
@@ -37,7 +37,7 @@ internal sealed class SkiaTextureFramePresenter : IVoxelFramePresenter
         _paint.Dispose();
     }
 
-    private void RenderToCanvas(SKCanvas canvas, GRContext? grContext, VoxelFrameBuffer frame, Rect destination)
+    private void RenderToCanvas(SKCanvas canvas, GRContext? grContext, IVoxelFrameBuffer frame, Rect destination)
     {
         var info = new SKImageInfo(frame.Size.Width, frame.Size.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
         var target = ToSkRect(destination);
@@ -73,7 +73,7 @@ internal sealed class SkiaTextureFramePresenter : IVoxelFramePresenter
         }
     }
 
-    private bool EnsureSurface(GRContext context, PixelSize size, SKImageInfo info)
+    private bool EnsureSurface(GRContext context, VoxelSize size, SKImageInfo info)
     {
         if (_surface != null)
         {
@@ -122,10 +122,10 @@ internal sealed class SkiaTextureFramePresenter : IVoxelFramePresenter
     private sealed class SkiaDrawOperation : ICustomDrawOperation
     {
         private readonly Rect _destination;
-        private readonly VoxelFrameBuffer _frame;
+        private readonly IVoxelFrameBuffer _frame;
         private readonly SkiaTextureFramePresenter _presenter;
 
-        public SkiaDrawOperation(Rect destination, VoxelFrameBuffer frame, SkiaTextureFramePresenter presenter)
+        public SkiaDrawOperation(Rect destination, IVoxelFrameBuffer frame, SkiaTextureFramePresenter presenter)
         {
             _destination = destination;
             _frame = frame;

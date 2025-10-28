@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
@@ -10,6 +8,13 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Minecraftonia.Content;
+using Minecraftonia.Core;
+using Minecraftonia.Game.Rendering;
+using Minecraftonia.Hosting;
+using Minecraftonia.Hosting.Avalonia;
+using Minecraftonia.Rendering.Avalonia.Controls;
+using Minecraftonia.Rendering.Avalonia.Presenters;
 using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.VoxelEngine;
 using Minecraftonia.VoxelRendering;
@@ -21,11 +26,7 @@ public sealed class GameControl : Control
     private const float FieldOfViewDegrees = 70f;
 
     private bool _isFrameScheduled;
-    private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private TimeSpan _lastFrameTime;
-
-    private readonly HashSet<Key> _keysDown = new();
-    private readonly HashSet<Key> _keysPressed = new();
 
     private bool _breakQueued;
     private bool _placeQueued;
@@ -34,11 +35,18 @@ public sealed class GameControl : Control
     private readonly BlockTextures _textures;
     private readonly MinecraftoniaWorldConfig _worldConfig;
     private readonly int _defaultStreamingRadius;
-    private VoxelRayTracer<BlockType> _rayTracer;
-    private VoxelFrameBuffer? _framebuffer;
+    private IGameRenderer _gameRenderer;
+    private readonly bool _ownsRenderer;
+
+    private GameHost<BlockType>? _host;
+    private MinecraftoniaGameSession? _session;
+    private GameRenderPipeline? _pipeline;
+
+    private IVoxelFrameBuffer? _framebuffer;
     private IVoxelFramePresenter _framePresenter = null!;
+    private readonly Func<FramePresentationMode, IVoxelFramePresenter> _framePresenterFactory;
     private FramePresentationMode _presentationMode = FramePresentationMode.SkiaTexture;
-    private readonly PixelSize _renderSize = new PixelSize(360, 202);
+    private readonly VoxelSize _renderSize = new VoxelSize(360, 202);
 
     private VoxelCamera _camera;
     private bool _hasCamera;
@@ -48,14 +56,10 @@ public sealed class GameControl : Control
     private readonly Typeface _hudTypeface = Typeface.Default;
     private float _smoothedFps = 60f;
 
+    private KeyboardInputSource? _keyboard;
+    private PointerInputSource? _pointer;
     private bool _mouseLookEnabled;
     private Cursor? _previousCursor;
-    private IPointer? _capturedPointer;
-    private bool _requestPointerCapture;
-    private float _pendingMouseDeltaX;
-    private float _pendingMouseDeltaY;
-    private Point? _lastPointerPosition;
-    private bool _ignoreWarpPointerMove;
     private float _mouseSensitivity = 0.32f;
     private bool _invertMouseX = true;
     private bool _invertMouseY;
@@ -64,8 +68,6 @@ public sealed class GameControl : Control
     private const int GiSamplesMin = 0;
     private const int GiSamplesMax = 24;
 
-    private readonly HashSet<PhysicalKey> _physicalKeysDown = new();
-    private readonly HashSet<PhysicalKey> _physicalKeysPressed = new();
     private TopLevel? _topLevel;
 
     private int _paletteScrollDelta;
@@ -76,12 +78,21 @@ public sealed class GameControl : Control
     public bool IsGameActive => _isGameActive;
 
     public GameControl()
+        : this(null, null, null, null)
+    {
+    }
+
+    public GameControl(
+        IGameRenderer? gameRenderer = null,
+        Func<FramePresentationMode, IVoxelFramePresenter>? framePresenterFactory = null,
+        BlockTextures? textures = null,
+        MinecraftoniaWorldConfig? worldConfig = null)
     {
         Focusable = true;
         ClipToBounds = true;
 
-        _textures = new BlockTextures();
-        _worldConfig = MinecraftoniaWorldConfig.FromDimensions(
+        _textures = textures ?? new BlockTextures();
+        _worldConfig = worldConfig ?? MinecraftoniaWorldConfig.FromDimensions(
             96,
             48,
             96,
@@ -95,11 +106,16 @@ public sealed class GameControl : Control
             MaxDistance = 22f,
             Strength = 1.05f,
             AmbientLight = new Vector3(0.18f, 0.21f, 0.26f),
-            SunShadowSoftness = 0.58f
+            SunShadowSoftness = 0.58f,
+            Enabled = false
         };
 
-        _rayTracer = CreateRayTracer(_giSettings);
-        _framePresenter = CreateFramePresenter(_presentationMode);
+        _ownsRenderer = gameRenderer is null;
+        _gameRenderer = gameRenderer ?? new DefaultGameRenderer(CreateVoxelRenderer(_giSettings), _textures);
+        _framePresenterFactory = framePresenterFactory ?? CreateFramePresenter;
+        _framePresenter = _framePresenterFactory(_presentationMode);
+
+        ConfigureHosting();
     }
 
     public FramePresentationMode PresentationMode
@@ -118,7 +134,23 @@ public sealed class GameControl : Control
         }
     }
 
-    private VoxelRayTracer<BlockType> CreateRayTracer(GlobalIlluminationSettings giSettings)
+    private void ConfigureHosting()
+    {
+        if (_session is null)
+        {
+            _session = new MinecraftoniaGameSession(_game, _textures);
+            _pipeline = new GameRenderPipeline(this);
+            _host = new GameHost<BlockType>(_session, _pipeline);
+        }
+        else
+        {
+            _session.SetGame(_game);
+        }
+
+        _session.SetActive(_isGameActive);
+    }
+
+    private IVoxelRenderer<BlockType> CreateVoxelRenderer(GlobalIlluminationSettings giSettings)
     {
         return new VoxelRayTracer<BlockType>(
             _renderSize,
@@ -147,7 +179,21 @@ public sealed class GameControl : Control
     {
         base.OnAttachedToVisualTree(e);
         _topLevel = TopLevel.GetTopLevel(this);
-        SubscribeToTopLevelInput();
+
+        if (_topLevel is not null)
+        {
+            _keyboard = new KeyboardInputSource(_topLevel);
+            _pointer = new PointerInputSource(_topLevel, this);
+
+            if (_mouseLookEnabled)
+            {
+                _pointer.EnableMouseLook();
+                _pointer.QueueWarpToCenter();
+                _previousCursor ??= _topLevel.Cursor;
+                _topLevel.Cursor = new Cursor(StandardCursorType.None);
+                Focus();
+            }
+        }
 
         if (_isGameActive && !_mouseLookEnabled)
         {
@@ -163,19 +209,22 @@ public sealed class GameControl : Control
         _isFrameScheduled = false;
         _lastFrameTime = TimeSpan.Zero;
 
-        UnsubscribeFromTopLevelInput();
-        _topLevel = null;
-
         if (_mouseLookEnabled)
         {
             SetMouseLook(false);
         }
 
+        _pointer?.Dispose();
+        _pointer = null;
+        _keyboard?.Dispose();
+        _keyboard = null;
+        _topLevel = null;
+
         var framebuffer = _framebuffer;
         _framebuffer = null;
         framebuffer?.Dispose();
 
-        ReplaceFramePresenter(CreateFramePresenter(_presentationMode));
+        ReplaceFramePresenter(_framePresenterFactory(_presentationMode));
     }
 
     private void OnAnimationFrame(TimeSpan timestamp)
@@ -222,16 +271,22 @@ public sealed class GameControl : Control
 
     private void UpdateGame(float deltaTime)
     {
+        if (_host is null || _session is null)
+        {
+            return;
+        }
+
         if (!_isGameActive)
         {
-            _keysPressed.Clear();
-            _physicalKeysPressed.Clear();
+            _keyboard?.NextFrame();
+            _pointer?.NextFrame();
             RenderScene();
             InvalidateVisual();
             return;
         }
 
         HandleToggleInput();
+
         float keyboardYaw = 0f;
         if (IsKeyDown(Key.Left)) keyboardYaw -= 1f;
         if (IsKeyDown(Key.Right)) keyboardYaw += 1f;
@@ -244,27 +299,26 @@ public sealed class GameControl : Control
 
         float mouseYawDelta = 0f;
         float mousePitchDelta = 0f;
-        if (Math.Abs(_pendingMouseDeltaX) > float.Epsilon || Math.Abs(_pendingMouseDeltaY) > float.Epsilon)
+        if (_pointer is { } pointer)
         {
-            float yawDelta = _pendingMouseDeltaX * _mouseSensitivity;
-            float pitchDelta = _pendingMouseDeltaY * _mouseSensitivity;
+            float yawDelta = pointer.DeltaX * _mouseSensitivity;
+            float pitchDelta = pointer.DeltaY * _mouseSensitivity;
 
-            mouseYawDelta = _invertMouseX ? -yawDelta : yawDelta;
-            mousePitchDelta = _invertMouseY ? pitchDelta : -pitchDelta;
-            _pendingMouseDeltaX = 0f;
-            _pendingMouseDeltaY = 0f;
+            if (Math.Abs(yawDelta) > float.Epsilon || Math.Abs(pitchDelta) > float.Epsilon)
+            {
+                mouseYawDelta = _invertMouseX ? -yawDelta : yawDelta;
+                mousePitchDelta = _invertMouseY ? pitchDelta : -pitchDelta;
+            }
+
+            pointer.NextFrame();
         }
 
-        bool moveForward = IsMovementKeyDown(Key.W, Key.Z, Key.Up) || IsMovementPhysicalKeyDown(PhysicalKey.W, PhysicalKey.Z);
-        bool moveBackward = IsMovementKeyDown(Key.S, Key.Down) || IsMovementPhysicalKeyDown(PhysicalKey.S);
-        bool moveLeft = IsMovementKeyDown(Key.A, Key.Q, Key.Left) || IsMovementPhysicalKeyDown(PhysicalKey.A, PhysicalKey.Q);
-        bool moveRight = IsMovementKeyDown(Key.D, Key.Right) || IsMovementPhysicalKeyDown(PhysicalKey.D);
-
-        bool sprint =
-            IsMovementKeyDown(Key.LeftShift, Key.RightShift) ||
-            IsMovementPhysicalKeyDown(PhysicalKey.ShiftLeft, PhysicalKey.ShiftRight);
-
-        bool jumpPressed = IsKeyPressed(Key.Space) || IsPhysicalKeyPressed(PhysicalKey.Space);
+        bool moveForward = IsMovementKeyDown(Key.W, Key.Z, Key.Up);
+        bool moveBackward = IsMovementKeyDown(Key.S, Key.Down);
+        bool moveLeft = IsMovementKeyDown(Key.A, Key.Q, Key.Left);
+        bool moveRight = IsMovementKeyDown(Key.D, Key.Right);
+        bool sprint = IsMovementKeyDown(Key.LeftShift, Key.RightShift);
+        bool jumpPressed = IsKeyPressed(Key.Space);
 
         int maxPaletteIndex = Math.Max(0, _game.Palette.Count - 1);
         int? hotbarSelection = null;
@@ -297,42 +351,35 @@ public sealed class GameControl : Control
             hotbarSelection,
             _paletteScrollDelta);
 
-        _game.Update(input, deltaTime);
+        _session.QueueInput(input, deltaTime);
+        var result = _host.Step(TimeSpan.FromSeconds(deltaTime));
+
+        _framebuffer = result.Framebuffer;
+        _camera = result.Camera;
+        _hasCamera = true;
 
         _breakQueued = false;
         _placeQueued = false;
         _paletteScrollDelta = 0;
 
-        RenderScene();
-
         float instantaneousFps = deltaTime > 0.0001f ? 1f / deltaTime : 0f;
         _smoothedFps += (instantaneousFps - _smoothedFps) * 0.1f;
 
-        _keysPressed.Clear();
-        _physicalKeysPressed.Clear();
+        _keyboard?.NextFrame();
         InvalidateVisual();
     }
 
-
-
     private void RenderScene()
     {
-        var result = _rayTracer.Render(_game.World, _game.Player, _game.Textures, _framebuffer);
+        if (_pipeline is null || _session is null)
+        {
+            return;
+        }
+
+        var result = _pipeline.Render(_session, _framebuffer);
         _framebuffer = result.Framebuffer;
         _camera = result.Camera;
         _hasCamera = true;
-    }
-
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        base.OnKeyDown(e);
-        HandleKeyDown(e);
-    }
-
-    protected override void OnKeyUp(KeyEventArgs e)
-    {
-        base.OnKeyUp(e);
-        HandleKeyUp(e);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -380,95 +427,25 @@ public sealed class GameControl : Control
         }
     }
 
-    private bool IsKeyDown(Key key) => _keysDown.Contains(key);
-    private bool IsKeyPressed(Key key) => _keysPressed.Contains(key);
-    private bool IsPhysicalKeyDown(PhysicalKey key) => _physicalKeysDown.Contains(key);
-    private bool IsPhysicalKeyPressed(PhysicalKey key) => _physicalKeysPressed.Contains(key);
+    private bool IsKeyDown(Key key) => _keyboard?.IsDown(key) ?? false;
+    private bool IsKeyPressed(Key key) => _keyboard?.WasPressed(key) ?? false;
 
-    private bool IsMovementKeyDown(Key primary, Key? alt1 = null, Key? alt2 = null)
+    private bool IsMovementKeyDown(params Key[] keys)
     {
-        if (primary != Key.None && IsKeyDown(primary))
+        if (_keyboard is null)
         {
-            return true;
+            return false;
         }
 
-        if (alt1.HasValue && alt1.Value != Key.None && IsKeyDown(alt1.Value))
-        {
-            return true;
-        }
-
-        if (alt2.HasValue && alt2.Value != Key.None && IsKeyDown(alt2.Value))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool IsMovementPhysicalKeyDown(params PhysicalKey[] keys)
-    {
         foreach (var key in keys)
         {
-            if (key != PhysicalKey.None && IsPhysicalKeyDown(key))
+            if (key != Key.None && _keyboard.IsDown(key))
             {
                 return true;
             }
         }
 
         return false;
-    }
-
-    private void HandleKeyDown(KeyEventArgs e)
-    {
-        if (!_keysDown.Contains(e.Key))
-        {
-            _keysDown.Add(e.Key);
-            _keysPressed.Add(e.Key);
-        }
-
-        if (!_physicalKeysDown.Contains(e.PhysicalKey))
-        {
-            _physicalKeysDown.Add(e.PhysicalKey);
-            _physicalKeysPressed.Add(e.PhysicalKey);
-        }
-    }
-
-    private void HandleKeyUp(KeyEventArgs e)
-    {
-        _keysDown.Remove(e.Key);
-        _physicalKeysDown.Remove(e.PhysicalKey);
-    }
-
-    private void SubscribeToTopLevelInput()
-    {
-        if (_topLevel is null)
-        {
-            return;
-        }
-
-        _topLevel.AddHandler(InputElement.KeyDownEvent, TopLevelOnKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, true);
-        _topLevel.AddHandler(InputElement.KeyUpEvent, TopLevelOnKeyUp, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, true);
-    }
-
-    private void UnsubscribeFromTopLevelInput()
-    {
-        if (_topLevel is null)
-        {
-            return;
-        }
-
-        _topLevel.RemoveHandler(InputElement.KeyDownEvent, TopLevelOnKeyDown);
-        _topLevel.RemoveHandler(InputElement.KeyUpEvent, TopLevelOnKeyUp);
-    }
-
-    private void TopLevelOnKeyDown(object? sender, KeyEventArgs e)
-    {
-        HandleKeyDown(e);
-    }
-
-    private void TopLevelOnKeyUp(object? sender, KeyEventArgs e)
-    {
-        HandleKeyUp(e);
     }
 
     public override void Render(DrawingContext context)
@@ -674,15 +651,20 @@ public sealed class GameControl : Control
         _mouseSensitivity = Math.Clamp(_mouseSensitivity + delta, 0.05f, 0.6f);
     }
 
-    private void RefreshRayTracer()
+    private void RefreshRenderer()
     {
-        _rayTracer = CreateRayTracer(_giSettings);
+        if (!_ownsRenderer)
+        {
+            return;
+        }
+
+        _gameRenderer = new DefaultGameRenderer(CreateVoxelRenderer(_giSettings), _textures);
     }
 
     private void ToggleGlobalIllumination()
     {
         _giSettings = _giSettings with { Enabled = !_giSettings.Enabled };
-        RefreshRayTracer();
+        RefreshRenderer();
     }
 
     private void AdjustGiSamples(int delta)
@@ -694,7 +676,7 @@ public sealed class GameControl : Control
         }
 
         _giSettings = _giSettings with { DiffuseSampleCount = newSamples };
-        RefreshRayTracer();
+        RefreshRenderer();
     }
 
     private void TogglePresentationMode()
@@ -756,126 +738,33 @@ public sealed class GameControl : Control
 
         if (enabled)
         {
-            _requestPointerCapture = true;
-            _lastPointerPosition = null;
-            if (TopLevel.GetTopLevel(this) is { } topLevel)
+            _pointer?.EnableMouseLook();
+            _pointer?.QueueWarpToCenter();
+            if (_topLevel is not null)
             {
-                _previousCursor = topLevel.Cursor;
-                topLevel.Cursor = new Cursor(StandardCursorType.None);
+                _previousCursor = _topLevel.Cursor;
+                _topLevel.Cursor = new Cursor(StandardCursorType.None);
             }
 
             Focus();
-            WarpPointerToCenter();
         }
         else
         {
-            _requestPointerCapture = false;
-            _pendingMouseDeltaX = 0f;
-            _pendingMouseDeltaY = 0f;
-            _lastPointerPosition = null;
-            _ignoreWarpPointerMove = false;
-
-            if (_capturedPointer is not null)
+            _pointer?.DisableMouseLook();
+            if (_topLevel is not null)
             {
-                _capturedPointer.Capture(null);
-                _capturedPointer = null;
-            }
-
-            if (TopLevel.GetTopLevel(this) is { } topLevel)
-            {
-                topLevel.Cursor = _previousCursor ?? new Cursor(StandardCursorType.Arrow);
+                _topLevel.Cursor = _previousCursor ?? new Cursor(StandardCursorType.Arrow);
             }
 
             _previousCursor = null;
         }
     }
 
-    private void WarpPointerToCenter(bool allowRetry = true)
-    {
-        if (!_mouseLookEnabled || _topLevel is null)
-        {
-            return;
-        }
-
-        if (Bounds.Width <= 0 || Bounds.Height <= 0)
-        {
-            if (allowRetry)
-            {
-                Dispatcher.UIThread.Post(() => WarpPointerToCenter(false), DispatcherPriority.Input);
-            }
-
-            return;
-        }
-
-        var center = new Point(Bounds.Width / 2d, Bounds.Height / 2d);
-        var screenPoint = _topLevel.PointToScreen(center);
-
-        if (MouseCursorUtils.TryWarpPointer(screenPoint))
-        {
-            _ignoreWarpPointerMove = true;
-            _lastPointerPosition = center;
-        }
-    }
-
-    protected override void OnPointerMoved(PointerEventArgs e)
-    {
-        base.OnPointerMoved(e);
-
-        if (!_mouseLookEnabled)
-        {
-            return;
-        }
-
-        if ((_capturedPointer is null || _capturedPointer != e.Pointer) && (_requestPointerCapture || e.Pointer.Captured != this))
-        {
-            e.Pointer.Capture(this);
-            _capturedPointer = e.Pointer;
-            _requestPointerCapture = false;
-            _lastPointerPosition = null;
-        }
-
-        var position = e.GetPosition(this);
-
-        if (_ignoreWarpPointerMove)
-        {
-            _ignoreWarpPointerMove = false;
-            _lastPointerPosition = position;
-            return;
-        }
-
-        if (_lastPointerPosition.HasValue)
-        {
-            Avalonia.Vector delta = position - _lastPointerPosition.Value;
-            _pendingMouseDeltaX += (float)delta.X;
-            _pendingMouseDeltaY += (float)delta.Y;
-        }
-
-        _lastPointerPosition = position;
-        WarpPointerToCenter();
-    }
-
-    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
-    {
-        base.OnPointerCaptureLost(e);
-
-        if (e.Pointer == _capturedPointer)
-        {
-            _capturedPointer = null;
-            _lastPointerPosition = null;
-            if (_mouseLookEnabled)
-            {
-                _requestPointerCapture = true;
-            }
-        }
-    }
-
     protected override void OnLostFocus(RoutedEventArgs e)
     {
         base.OnLostFocus(e);
-        _keysDown.Clear();
-        _keysPressed.Clear();
-        _physicalKeysDown.Clear();
-        _physicalKeysPressed.Clear();
+        _keyboard?.NextFrame();
+        _pointer?.NextFrame();
         if (_mouseLookEnabled)
         {
             SetMouseLook(false);
@@ -885,7 +774,9 @@ public sealed class GameControl : Control
     public void StartNewGame()
     {
         _game = new MinecraftoniaGame(_worldConfig, textures: _textures, chunkStreamingRadius: _defaultStreamingRadius);
+        ConfigureHosting();
         _isGameActive = true;
+        _session?.SetActive(true);
         ResetTransientInputState();
         _smoothedFps = 60f;
         RenderScene();
@@ -897,7 +788,9 @@ public sealed class GameControl : Control
     public void LoadGame(GameSaveData save)
     {
         _game = MinecraftoniaGame.FromSave(save, _textures);
+        ConfigureHosting();
         _isGameActive = true;
+        _session?.SetActive(true);
         ResetTransientInputState();
         _smoothedFps = 60f;
         RenderScene();
@@ -916,6 +809,7 @@ public sealed class GameControl : Control
         }
 
         _isGameActive = false;
+        _session?.SetActive(false);
         if (_mouseLookEnabled)
         {
             SetMouseLook(false);
@@ -930,6 +824,7 @@ public sealed class GameControl : Control
         }
 
         _isGameActive = true;
+        _session?.SetActive(true);
         ResetTransientInputState();
         _smoothedFps = 60f;
         RenderScene();
@@ -942,16 +837,9 @@ public sealed class GameControl : Control
     {
         _breakQueued = false;
         _placeQueued = false;
-        _pendingMouseDeltaX = 0f;
-        _pendingMouseDeltaY = 0f;
         _paletteScrollDelta = 0;
-        _keysDown.Clear();
-        _keysPressed.Clear();
-        _physicalKeysDown.Clear();
-        _physicalKeysPressed.Clear();
-        _capturedPointer = null;
-        _requestPointerCapture = false;
-        _lastPointerPosition = null;
+        _keyboard?.NextFrame();
+        _pointer?.NextFrame();
     }
 
     private void RequestPause()
@@ -974,6 +862,70 @@ public sealed class GameControl : Control
     {
         _framePresenter?.Dispose();
         _framePresenter = presenter;
+    }
+
+    private sealed class MinecraftoniaGameSession : IGameSession<BlockType>
+    {
+        private MinecraftoniaGame _game;
+        private readonly BlockTextures _textures;
+        private GameInputState _pendingInput;
+        private float _pendingDeltaTime;
+        private bool _hasPendingInput;
+        private bool _isActive = true;
+
+        public MinecraftoniaGameSession(MinecraftoniaGame game, BlockTextures textures)
+        {
+            _game = game ?? throw new ArgumentNullException(nameof(game));
+            _textures = textures ?? throw new ArgumentNullException(nameof(textures));
+        }
+
+        public void SetGame(MinecraftoniaGame game) => _game = game ?? throw new ArgumentNullException(nameof(game));
+        public void SetActive(bool active) => _isActive = active;
+
+        public void QueueInput(GameInputState input, float deltaTime)
+        {
+            _pendingInput = input;
+            _pendingDeltaTime = deltaTime;
+            _hasPendingInput = true;
+        }
+
+        public MinecraftoniaGame Game => _game;
+
+        public IVoxelWorld<BlockType> World => _game.World;
+        public Player Player => _game.Player;
+        public IVoxelMaterialProvider<BlockType> Materials => _textures;
+
+        public void Update(GameTime time)
+        {
+            if (!_isActive || !_hasPendingInput)
+            {
+                return;
+            }
+
+            _game.Update(_pendingInput, _pendingDeltaTime);
+            _hasPendingInput = false;
+        }
+    }
+
+    private sealed class GameRenderPipeline : IRenderPipeline<BlockType>
+    {
+        private readonly GameControl _owner;
+
+        public GameRenderPipeline(GameControl owner)
+        {
+            _owner = owner;
+        }
+
+        public IVoxelRenderResult<BlockType> Render(IGameSession<BlockType> session, IVoxelFrameBuffer? framebuffer)
+        {
+            if (session is not MinecraftoniaGameSession actual)
+            {
+                throw new InvalidOperationException("Unexpected session type.");
+            }
+
+            var result = _owner._gameRenderer.Render(actual.Game, framebuffer);
+            return new VoxelRenderResult<BlockType>(result.Framebuffer, result.Camera);
+        }
     }
 }
 

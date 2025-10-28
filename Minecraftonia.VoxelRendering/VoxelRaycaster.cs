@@ -7,7 +7,7 @@ namespace Minecraftonia.VoxelRendering;
 public static class VoxelRaycaster
 {
     public static bool TryPick<TBlock>(
-        VoxelWorld<TBlock> world,
+        IVoxelWorld<TBlock> world,
         Vector3 origin,
         Vector3 direction,
         float maxDistance,

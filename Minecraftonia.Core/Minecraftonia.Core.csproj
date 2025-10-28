@@ -6,8 +6,4 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Minecraftonia.Core\Minecraftonia.Core.csproj" />
-  </ItemGroup>
-
 </Project>

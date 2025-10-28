@@ -6,10 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.4" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
   </ItemGroup>
 </Project>

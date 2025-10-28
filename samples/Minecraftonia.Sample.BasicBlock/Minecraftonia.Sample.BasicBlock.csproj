@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Minecraftonia.Core\Minecraftonia.Core.csproj" />
+    <ProjectReference Include="..\..\Minecraftonia.Content\Minecraftonia.Content.csproj" />
+    <ProjectReference Include="..\..\Minecraftonia.Hosting\Minecraftonia.Hosting.csproj" />
+    <ProjectReference Include="..\..\Minecraftonia.Hosting.Avalonia\Minecraftonia.Hosting.Avalonia.csproj" />
+    <ProjectReference Include="..\..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
+    <ProjectReference Include="..\..\Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj" />
+    <ProjectReference Include="..\..\Minecraftonia.Rendering.Avalonia\Minecraftonia.Rendering.Avalonia.csproj" />
+  </ItemGroup>
+</Project>

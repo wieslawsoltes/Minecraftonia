@@ -1,6 +1,6 @@
 using System;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.Core;
 
 public sealed class MinecraftoniaWorldConfig
 {

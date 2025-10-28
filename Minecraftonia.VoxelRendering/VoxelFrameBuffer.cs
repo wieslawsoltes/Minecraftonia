@@ -1,26 +1,21 @@
 using System;
-using Avalonia;
 
 namespace Minecraftonia.VoxelRendering;
 
-public sealed class VoxelFrameBuffer : IDisposable
+public sealed class VoxelFrameBuffer : IVoxelFrameBuffer
 {
     private byte[] _pixels;
     private bool _disposed;
 
-    public VoxelFrameBuffer(PixelSize size)
+    public VoxelFrameBuffer(VoxelSize size)
     {
-        if (size.Width <= 0 || size.Height <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(size));
-        }
-
+        EnsureValid(size);
         Size = size;
         Stride = size.Width * 4;
         _pixels = new byte[Stride * size.Height];
     }
 
-    public PixelSize Size { get; private set; }
+    public VoxelSize Size { get; private set; }
 
     public int Stride { get; private set; }
 
@@ -55,15 +50,11 @@ public sealed class VoxelFrameBuffer : IDisposable
         }
     }
 
-    public void Resize(PixelSize size)
+    public void Resize(VoxelSize size)
     {
         ThrowIfDisposed();
 
-        if (size.Width <= 0 || size.Height <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(size));
-        }
-
+        EnsureValid(size);
         Size = size;
         Stride = size.Width * 4;
         int required = Stride * size.Height;
@@ -84,6 +75,14 @@ public sealed class VoxelFrameBuffer : IDisposable
         Size = default;
         Stride = 0;
         _disposed = true;
+    }
+
+    private static void EnsureValid(VoxelSize size)
+    {
+        if (size.Width <= 0 || size.Height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(size), "Dimensions must be positive.");
+        }
     }
 
     private void ThrowIfDisposed()

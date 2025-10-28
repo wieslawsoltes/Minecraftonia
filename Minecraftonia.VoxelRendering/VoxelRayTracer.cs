@@ -1,18 +1,17 @@
 using System;
 using System.Numerics;
 using System.Threading.Tasks;
-using Avalonia;
 using Minecraftonia.VoxelEngine;
 using Minecraftonia.VoxelRendering.Lighting;
 
 namespace Minecraftonia.VoxelRendering;
 
-public sealed class VoxelRayTracer<TBlock>
+public sealed class VoxelRayTracer<TBlock> : IVoxelRenderer<TBlock>
 {
     public const float DefaultMaxTraceDistance = 90f;
     private const float MaxDistance = DefaultMaxTraceDistance;
 
-    private readonly PixelSize _renderSize;
+    private readonly VoxelSize _renderSize;
     private readonly float _fieldOfViewDegrees;
     private readonly Func<TBlock, bool> _isSolid;
     private readonly Func<TBlock, bool> _isEmpty;
@@ -32,7 +31,7 @@ public sealed class VoxelRayTracer<TBlock>
     private readonly int _maxRaymarchSteps;
 
     public VoxelRayTracer(
-        PixelSize renderSize,
+        VoxelSize renderSize,
         float fieldOfViewDegrees,
         Func<TBlock, bool> isSolid,
         Func<TBlock, bool> isEmpty,
@@ -75,11 +74,11 @@ public sealed class VoxelRayTracer<TBlock>
             : null;
     }
 
-    public VoxelRenderResult<TBlock> Render(
-        VoxelWorld<TBlock> world,
+    public IVoxelRenderResult<TBlock> Render(
+        IVoxelWorld<TBlock> world,
         Player player,
         IVoxelMaterialProvider<TBlock> materials,
-        VoxelFrameBuffer? framebuffer = null)
+        IVoxelFrameBuffer? framebuffer = null)
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
         if (player is null) throw new ArgumentNullException(nameof(player));
@@ -116,7 +115,7 @@ public sealed class VoxelRayTracer<TBlock>
 
         Vector3 eye = player.EyePosition;
 
-        PixelSize fbSize = fb.Size;
+        VoxelSize fbSize = fb.Size;
         int width = fbSize.Width;
         int height = fbSize.Height;
         int stride = fb.Stride;
@@ -189,7 +188,7 @@ public sealed class VoxelRayTracer<TBlock>
     }
 
     private Vector4 TraceRay(
-        VoxelWorld<TBlock> world,
+        IVoxelWorld<TBlock> world,
         Vector3 origin,
         Vector3 direction,
         IVoxelMaterialProvider<TBlock> materials,
@@ -264,7 +263,7 @@ public sealed class VoxelRayTracer<TBlock>
     }
 
     private Vector3 ComputeShading(
-        VoxelWorld<TBlock> world,
+        IVoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
         Vector3 hitPoint,
         BlockFace face,
@@ -299,7 +298,7 @@ public sealed class VoxelRayTracer<TBlock>
     }
 
 
-    private VoxelFrameBuffer EnsureFramebuffer(VoxelFrameBuffer? framebuffer)
+    private IVoxelFrameBuffer EnsureFramebuffer(IVoxelFrameBuffer? framebuffer)
     {
         if (framebuffer is null)
         {

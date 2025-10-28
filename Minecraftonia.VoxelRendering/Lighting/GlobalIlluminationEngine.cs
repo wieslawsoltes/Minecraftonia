@@ -57,7 +57,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
     }
 
     public LightingResult ComputeLighting(
-        VoxelWorld<TBlock> world,
+        IVoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
         Vector3 hitPoint,
         Vector3 normal,
@@ -102,7 +102,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
     }
 
     private float ComputeSunVisibility(
-        VoxelWorld<TBlock> world,
+        IVoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
         Vector3 origin,
         Vector3 sunDirection)
@@ -131,7 +131,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
     }
 
     private float TraceVisibility(
-        VoxelWorld<TBlock> world,
+        IVoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
         Vector3 origin,
         Vector3 direction,
@@ -174,7 +174,7 @@ public sealed class GlobalIlluminationEngine<TBlock>
     }
 
     private Vector3 SampleGlobalIllumination(
-        VoxelWorld<TBlock> world,
+        IVoxelWorld<TBlock> world,
         IVoxelMaterialProvider<TBlock> materials,
         Vector3 hitPoint,
         Vector3 normal,

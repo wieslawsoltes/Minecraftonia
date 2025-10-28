@@ -24,7 +24,7 @@ internal readonly struct VoxelDdaHit<TBlock>
 
 internal struct VoxelDdaWalker<TBlock>
 {
-    private readonly VoxelWorld<TBlock> _world;
+    private readonly IVoxelWorld<TBlock> _world;
     private readonly Vector3 _origin;
     private readonly Vector3 _direction;
     private readonly float _maxDistance;
@@ -33,7 +33,7 @@ internal struct VoxelDdaWalker<TBlock>
     private readonly int _chunkCountX;
     private readonly int _chunkCountY;
     private readonly int _chunkCountZ;
-    private VoxelWorld<TBlock>.BlockAccessCache _cache;
+    private VoxelBlockAccessCache<TBlock> _cache;
 
     private int _mapX;
     private int _mapY;
@@ -62,7 +62,7 @@ internal struct VoxelDdaWalker<TBlock>
     private int _stepsTaken;
 
     public VoxelDdaWalker(
-        VoxelWorld<TBlock> world,
+        IVoxelWorld<TBlock> world,
         Vector3 origin,
         Vector3 direction,
         float maxDistance,
@@ -77,7 +77,7 @@ internal struct VoxelDdaWalker<TBlock>
         _chunkCountX = world.ChunkCountX;
         _chunkCountY = world.ChunkCountY;
         _chunkCountZ = world.ChunkCountZ;
-        _cache = new VoxelWorld<TBlock>.BlockAccessCache();
+        _cache = default;
 
         _mapX = FloorToInt(origin.X);
         _mapY = FloorToInt(origin.Y);

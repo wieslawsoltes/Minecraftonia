@@ -1,13 +1,15 @@
+using System;
+
 namespace Minecraftonia.VoxelRendering;
 
-public readonly struct VoxelRenderResult<TBlock>
+public readonly struct VoxelRenderResult<TBlock> : IVoxelRenderResult<TBlock>
 {
-    public VoxelRenderResult(VoxelFrameBuffer framebuffer, VoxelCamera camera)
+    public VoxelRenderResult(IVoxelFrameBuffer framebuffer, VoxelCamera camera)
     {
-        Framebuffer = framebuffer;
+        Framebuffer = framebuffer ?? throw new ArgumentNullException(nameof(framebuffer));
         Camera = camera;
     }
 
-    public VoxelFrameBuffer Framebuffer { get; }
+    public IVoxelFrameBuffer Framebuffer { get; }
     public VoxelCamera Camera { get; }
 }

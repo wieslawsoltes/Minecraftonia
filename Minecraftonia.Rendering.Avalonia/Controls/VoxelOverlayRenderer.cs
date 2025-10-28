@@ -4,7 +4,7 @@ using Avalonia;
 using Avalonia.Media;
 using Minecraftonia.VoxelEngine;
 
-namespace Minecraftonia.VoxelRendering;
+namespace Minecraftonia.Rendering.Avalonia.Controls;
 
 public static class VoxelOverlayRenderer
 {
@@ -17,8 +17,8 @@ public static class VoxelOverlayRenderer
 
         pen ??= new Pen(Brushes.White, 1);
         var center = new Point(viewport.Width / 2d, viewport.Height / 2d);
-        context.DrawLine(pen, center + new Avalonia.Vector(-length, 0), center + new Avalonia.Vector(length, 0));
-        context.DrawLine(pen, center + new Avalonia.Vector(0, -length), center + new Avalonia.Vector(0, length));
+        context.DrawLine(pen, center + new global::Avalonia.Vector(-length, 0), center + new global::Avalonia.Vector(length, 0));
+        context.DrawLine(pen, center + new global::Avalonia.Vector(0, -length), center + new global::Avalonia.Vector(0, length));
     }
 
     public static void DrawSelection<TBlock>(DrawingContext context, VoxelProjector projector, VoxelRaycastHit<TBlock> hit)

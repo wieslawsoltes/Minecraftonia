@@ -2,9 +2,9 @@ using System;
 using System.Runtime.InteropServices;
 using Avalonia;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.Rendering.Avalonia.Input;
 
-internal static partial class MouseCursorUtils
+public static partial class MouseCursorUtils
 {
     public static bool TryWarpPointer(PixelPoint screenPoint)
     {

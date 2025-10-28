@@ -12,12 +12,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Minecraftonia.Core\Minecraftonia.Core.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Content\Minecraftonia.Content.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Rendering.Avalonia\Minecraftonia.Rendering.Avalonia.csproj" />
     <ProjectReference Include="..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
     <ProjectReference Include="..\Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj" />
     <ProjectReference Include="..\Minecraftonia.WaveFunctionCollapse\Minecraftonia.WaveFunctionCollapse.csproj" />
     <ProjectReference Include="..\Minecraftonia.OpenStreetMap\Minecraftonia.OpenStreetMap.csproj" />
     <ProjectReference Include="..\Minecraftonia.MarkovJunior\Minecraftonia.MarkovJunior.csproj" />
     <ProjectReference Include="..\Minecraftonia.MarkovJunior.Architecture\Minecraftonia.MarkovJunior.Architecture.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Hosting\Minecraftonia.Hosting.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Hosting.Avalonia\Minecraftonia.Hosting.Avalonia.csproj" />
   </ItemGroup>
 
 </Project>

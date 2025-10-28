@@ -1,8 +1,9 @@
 using System;
 using System.Numerics;
 using Avalonia;
+using Minecraftonia.VoxelRendering;
 
-namespace Minecraftonia.VoxelRendering;
+namespace Minecraftonia.Rendering.Avalonia.Controls;
 
 public readonly struct VoxelProjector
 {

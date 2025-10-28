@@ -1,4 +1,4 @@
-namespace Minecraftonia.Game;
+namespace Minecraftonia.Core;
 
 public enum TerrainGenerationMode
 {

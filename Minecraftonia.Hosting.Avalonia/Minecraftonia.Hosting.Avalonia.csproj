@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Minecraftonia.Core\Minecraftonia.Core.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Hosting\Minecraftonia.Hosting.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Rendering.Avalonia\Minecraftonia.Rendering.Avalonia.csproj" />
+  </ItemGroup>
+
+</Project>

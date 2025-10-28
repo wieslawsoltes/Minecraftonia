@@ -8,6 +8,7 @@ Minecraftonia is a work-in-progress voxel sandbox built with C# 13/.NET 9 and Av
 - **Software ray tracing** – real-time voxel ray marcher that writes into a CPU framebuffer which can be presented either via the legacy Avalonia `WriteableBitmap` path or uploaded to a Skia `GRContext`-backed texture for crisp scaling without traditional GPU shaders.
 - **Procedural terrain generation** – legacy layered noise with caves, shoreline dressing, and tree placement, plus a height-map importer for real-world terrain experiments.
 - **Composable UI shell** – Avalonia-based menus with keyboard/mouse controls, full pointer capture, and configurable sensitivity/inversion.
+- **Shared hosting infrastructure** – `Minecraftonia.Hosting` and `.Hosting.Avalonia` drive the update/render loop and pointer/keyboard capture used by the full game and sample apps alike.
 - **Save and resume** – JSON save files capture world blocks, player state, and palette selection for persistence between sessions.
 
 ## Getting Started
@@ -31,7 +32,33 @@ dotnet run --project Minecraftonia
 
 The application launches directly into the main menu. Use the pointer to navigate or the keyboard (`Enter`/`Space`) to activate focused buttons.
 
+### Samples
+
+The repo also ships with a lightweight sample that demonstrates the reusable rendering stack without the full game shell:
+
+```bash
+dotnet run --project samples/Minecraftonia.Sample.BasicBlock
+```
+
+The window now hosts `SampleGameControl`, which composes `Minecraftonia.Hosting` and `.Hosting.Avalonia` to reuse the same render/input loop as the main game. Click or press `Tab` to capture the pointer, then fly around the sample block column with `WASD`, `Space`, and `Shift`.
+
 ## Build & Publish
+
+### Repository Modules
+
+| Project | Purpose |
+| --- | --- |
+| `Minecraftonia.Core` | Shared primitives (`BlockType`, world configuration, math helpers). |
+| `Minecraftonia.Content` | Reusable content assets such as procedural block textures. |
+| `Minecraftonia.VoxelEngine` | Voxel storage, chunk management, and player physics. |
+| `Minecraftonia.VoxelRendering` | UI-agnostic CPU ray tracer and material interfaces. |
+| `Minecraftonia.Rendering.Avalonia` | Avalonia-specific presenters, cursor helpers, and `VoxelRenderControl<T>`. |
+| `Minecraftonia.Hosting` | Framework-neutral game loop primitives (`GameHost`, `IGameSession<T>`, `IRenderPipeline<T>`). |
+| `Minecraftonia.Hosting.Avalonia` | Avalonia keyboard/pointer capture sources and cursor helpers for hosted sessions. |
+| `Minecraftonia.Game` | Desktop game orchestration (menus, saves, world generation). |
+| `samples/Minecraftonia.Sample.BasicBlock` | Hosting-powered sample app built on `SampleGameControl` to demonstrate shared renderer/input. |
+
+Quick smoke-test steps for the main game and the sample app are listed in [`docs/smoke-tests.md`](docs/smoke-tests.md).
 
 ### Local release publish
 

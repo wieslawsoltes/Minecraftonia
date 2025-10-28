@@ -6,14 +6,14 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Minecraftonia.VoxelRendering;
 
-namespace Minecraftonia.Game;
+namespace Minecraftonia.Rendering.Avalonia.Presenters;
 
-internal sealed class WritableBitmapFramePresenter : IVoxelFramePresenter
+public sealed class WritableBitmapFramePresenter : IVoxelFramePresenter
 {
     private WriteableBitmap? _bitmap;
-    private PixelSize _size;
+    private VoxelSize _size;
 
-    public void Render(DrawingContext context, VoxelFrameBuffer framebuffer, Rect destination)
+    public void Render(DrawingContext context, IVoxelFrameBuffer framebuffer, Rect destination)
     {
         if (framebuffer is null || framebuffer.IsDisposed)
         {
@@ -47,15 +47,16 @@ internal sealed class WritableBitmapFramePresenter : IVoxelFramePresenter
         _size = default;
     }
 
-    private void EnsureBitmap(PixelSize size)
+    private void EnsureBitmap(VoxelSize size)
     {
-        if (_bitmap is { } existing && existing.PixelSize == size)
+        if (_bitmap is { } existing && existing.PixelSize.Width == size.Width && existing.PixelSize.Height == size.Height)
         {
             return;
         }
 
         _bitmap?.Dispose();
-        _bitmap = new WriteableBitmap(size, new Avalonia.Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+        var pixelSize = new PixelSize(size.Width, size.Height);
+        _bitmap = new WriteableBitmap(pixelSize, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
         _size = size;
     }
 }

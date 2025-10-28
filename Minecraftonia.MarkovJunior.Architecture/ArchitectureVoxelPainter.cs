@@ -1,4 +1,5 @@
 using System;
+using Minecraftonia.Core;
 using Minecraftonia.MarkovJunior;
 using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.WaveFunctionCollapse.Architecture;

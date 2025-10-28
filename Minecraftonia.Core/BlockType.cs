@@ -1,4 +1,4 @@
-namespace Minecraftonia.WaveFunctionCollapse;
+namespace Minecraftonia.Core;
 
 public enum BlockType
 {
