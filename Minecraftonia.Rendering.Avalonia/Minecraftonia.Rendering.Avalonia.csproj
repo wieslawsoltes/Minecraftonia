@@ -15,7 +15,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Minecraftonia.Core\Minecraftonia.Core.csproj" />
-    <ProjectReference Include="..\Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Rendering.Core\Minecraftonia.Rendering.Core.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Rendering.Pipelines\Minecraftonia.Rendering.Pipelines.csproj" />
   </ItemGroup>
 
 </Project>

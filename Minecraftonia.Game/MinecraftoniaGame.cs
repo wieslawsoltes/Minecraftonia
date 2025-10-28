@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Numerics;
 using Minecraftonia.Core;
 using Minecraftonia.Content;
+using Minecraftonia.Rendering.Pipelines;
 using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.VoxelEngine;
-using Minecraftonia.VoxelRendering;
 
 namespace Minecraftonia.Game;
 

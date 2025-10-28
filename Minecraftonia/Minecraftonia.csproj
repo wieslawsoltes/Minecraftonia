@@ -35,6 +35,5 @@
     <ProjectReference Include="..\Minecraftonia.Rendering.Avalonia\Minecraftonia.Rendering.Avalonia.csproj" />
     <ProjectReference Include="..\Minecraftonia.WaveFunctionCollapse\Minecraftonia.WaveFunctionCollapse.csproj" />
     <ProjectReference Include="..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
-    <ProjectReference Include="..\Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj" />
   </ItemGroup>
 </Project>

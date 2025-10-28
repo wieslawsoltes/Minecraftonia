@@ -3,9 +3,10 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Minecraftonia.VoxelEngine;
-using Minecraftonia.VoxelRendering;
 using Minecraftonia.Rendering.Avalonia.Presenters;
+using Minecraftonia.Rendering.Core;
+using Minecraftonia.Rendering.Pipelines;
+using Minecraftonia.VoxelEngine;
 
 namespace Minecraftonia.Rendering.Avalonia.Controls;
 

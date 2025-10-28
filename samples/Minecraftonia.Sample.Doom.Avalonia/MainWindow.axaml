@@ -1,0 +1,10 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:doom="clr-namespace:Minecraftonia.Sample.Doom.Avalonia"
+        mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="600"
+        x:Class="Minecraftonia.Sample.Doom.Avalonia.MainWindow"
+        Title="Voxel Doom Demo">
+    <doom:DoomGameControl />
+</Window>

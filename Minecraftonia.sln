@@ -15,8 +15,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Sample.BasicB
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.VoxelEngine", "Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj", "{4FDB9429-F361-4A58-AD68-9211886DCA8A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.VoxelRendering", "Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj", "{D50308BF-5896-45F1-94D9-E1B76FD14FE0}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Game", "Minecraftonia.Game\Minecraftonia.Game.csproj", "{11AF49B8-BBD5-48A3-9C82-9F0B8411A812}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.WaveFunctionCollapse", "Minecraftonia.WaveFunctionCollapse\Minecraftonia.WaveFunctionCollapse.csproj", "{AB190F32-E15B-46AF-8544-E8CDB05D478F}"
@@ -28,6 +26,16 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.MarkovJunior.Architecture", "Minecraftonia.MarkovJunior.Architecture\Minecraftonia.MarkovJunior.Architecture.csproj", "{85564B2A-3E98-41FF-A5B9-66622E3283B9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Hosting", "Minecraftonia.Hosting\Minecraftonia.Hosting.csproj", "{6E16E5C0-CE9D-41B4-B51E-F21005F6E53A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Rendering.Core", "Minecraftonia.Rendering.Core\Minecraftonia.Rendering.Core.csproj", "{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Rendering.Pipelines", "Minecraftonia.Rendering.Pipelines\Minecraftonia.Rendering.Pipelines.csproj", "{11B563B1-E832-436A-994B-BAA3B3A3E4E6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5D20AA90-6969-D8BD-9DCD-8634F4692FDA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Sample.Doom", "samples\Minecraftonia.Sample.Doom\Minecraftonia.Sample.Doom.csproj", "{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Sample.Doom.Avalonia", "samples\Minecraftonia.Sample.Doom.Avalonia\Minecraftonia.Sample.Doom.Avalonia.csproj", "{64BD441D-09A5-4E31-AA68-674EDA87BA22}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -111,18 +119,6 @@ Global
 		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|x64.Build.0 = Release|Any CPU
 		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|x86.ActiveCfg = Release|Any CPU
 		{4FDB9429-F361-4A58-AD68-9211886DCA8A}.Release|x86.Build.0 = Release|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|x64.Build.0 = Debug|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Debug|x86.Build.0 = Debug|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|x64.ActiveCfg = Release|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|x64.Build.0 = Release|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|x86.ActiveCfg = Release|Any CPU
-		{D50308BF-5896-45F1-94D9-E1B76FD14FE0}.Release|x86.Build.0 = Release|Any CPU
 		{11AF49B8-BBD5-48A3-9C82-9F0B8411A812}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{11AF49B8-BBD5-48A3-9C82-9F0B8411A812}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{11AF49B8-BBD5-48A3-9C82-9F0B8411A812}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -195,8 +191,60 @@ Global
 		{6E16E5C0-CE9D-41B4-B51E-F21005F6E53A}.Release|x64.Build.0 = Release|Any CPU
 		{6E16E5C0-CE9D-41B4-B51E-F21005F6E53A}.Release|x86.ActiveCfg = Release|Any CPU
 		{6E16E5C0-CE9D-41B4-B51E-F21005F6E53A}.Release|x86.Build.0 = Release|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Debug|x64.Build.0 = Debug|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Debug|x86.Build.0 = Debug|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Release|x64.ActiveCfg = Release|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Release|x64.Build.0 = Release|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Release|x86.ActiveCfg = Release|Any CPU
+		{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}.Release|x86.Build.0 = Release|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Debug|x64.Build.0 = Debug|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Debug|x86.Build.0 = Debug|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Release|x64.ActiveCfg = Release|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Release|x64.Build.0 = Release|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Release|x86.ActiveCfg = Release|Any CPU
+		{11B563B1-E832-436A-994B-BAA3B3A3E4E6}.Release|x86.Build.0 = Release|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Debug|x64.Build.0 = Debug|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Debug|x86.Build.0 = Debug|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Release|x64.ActiveCfg = Release|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Release|x64.Build.0 = Release|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Release|x86.ActiveCfg = Release|Any CPU
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7}.Release|x86.Build.0 = Release|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Debug|x64.Build.0 = Debug|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Debug|x86.Build.0 = Debug|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Release|Any CPU.Build.0 = Release|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Release|x64.ActiveCfg = Release|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Release|x64.Build.0 = Release|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Release|x86.ActiveCfg = Release|Any CPU
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B1BEC9A4-0EDC-45EC-81D0-6B388A843CE7} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
+		{64BD441D-09A5-4E31-AA68-674EDA87BA22} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 	EndGlobalSection
 EndGlobal

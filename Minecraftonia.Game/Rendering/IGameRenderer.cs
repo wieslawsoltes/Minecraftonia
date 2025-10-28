@@ -1,4 +1,4 @@
-using Minecraftonia.VoxelRendering;
+using Minecraftonia.Rendering.Core;
 
 namespace Minecraftonia.Game.Rendering;
 

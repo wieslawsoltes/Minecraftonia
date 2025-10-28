@@ -27,7 +27,7 @@ internal sealed class MainWindow : Window
         Width = 960;
         Height = 600;
 
-        Content = new SampleGameControl
+        Content = new SampleGameControl(RenderingConfigurationFactory.Create())
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch

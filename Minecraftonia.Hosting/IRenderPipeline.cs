@@ -1,4 +1,5 @@
-using Minecraftonia.VoxelRendering;
+using Minecraftonia.Rendering.Core;
+using Minecraftonia.Rendering.Pipelines;
 
 namespace Minecraftonia.Hosting;
 

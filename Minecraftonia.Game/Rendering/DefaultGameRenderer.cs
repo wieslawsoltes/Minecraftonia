@@ -1,6 +1,7 @@
 using System;
 using Minecraftonia.Core;
-using Minecraftonia.VoxelRendering;
+using Minecraftonia.Rendering.Core;
+using Minecraftonia.Rendering.Pipelines;
 
 namespace Minecraftonia.Game.Rendering;
 

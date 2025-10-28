@@ -10,7 +10,7 @@ namespace Minecraftonia.Hosting.Avalonia;
 /// <summary>
 /// Recreates the game control's pointer-capture behaviour so hosted controls can consume relative mouse deltas.
 /// </summary>
-public sealed class PointerInputSource : IDisposable
+public sealed class PointerInputSource : IPointerInputSource
 {
     private readonly TopLevel _topLevel;
     private readonly Control _target;

@@ -8,7 +8,7 @@ namespace Minecraftonia.Hosting.Avalonia;
 /// <summary>
 /// Tracks keyboard state for a TopLevel and exposes per-frame key information.
 /// </summary>
-public sealed class KeyboardInputSource : IDisposable
+public sealed class KeyboardInputSource : IKeyboardInputSource
 {
     private readonly HashSet<Key> _keysDown = new();
     private readonly HashSet<Key> _keysPressed = new();

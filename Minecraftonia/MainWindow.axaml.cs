@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private TextBlock _mainMenuStatus = default!;
     private TextBlock _pauseMenuStatus = default!;
     private Button _loadButton = default!;
+    private readonly IGameSaveService _saveService;
 
     public MainWindow()
     {
@@ -29,6 +30,9 @@ public partial class MainWindow : Window
         _pauseMenuStatus = this.FindControl<TextBlock>("PauseMenuStatus") ?? throw new InvalidOperationException("Pause menu status not found.");
         _loadButton = this.FindControl<Button>("LoadButton") ?? throw new InvalidOperationException("Load button not found.");
 
+        var configuration = GameControlConfiguration.CreateDefault();
+        _saveService = configuration.SaveService;
+        _gameControl.Configure(configuration);
         _gameControl.PauseRequested += OnGamePauseRequested;
 
         ShowMainMenu();
@@ -52,7 +56,7 @@ public partial class MainWindow : Window
         string path = GetDefaultSavePath();
         try
         {
-            var save = GameSaveService.Load(path);
+            var save = _saveService.Load(path);
             _gameControl.LoadGame(save);
             HideMenus();
         }
@@ -128,7 +132,7 @@ public partial class MainWindow : Window
         try
         {
             var save = _gameControl.CreateSaveData();
-            GameSaveService.Save(save, GetDefaultSavePath());
+            _saveService.Save(save, GetDefaultSavePath());
             UpdateLoadButtonState();
             return true;
         }
@@ -157,8 +161,8 @@ public partial class MainWindow : Window
         target.Text = hasMessage ? message : string.Empty;
     }
 
-    private static string GetDefaultSavePath()
+    private string GetDefaultSavePath()
     {
-        return GameSaveService.GetSavePath(DefaultSaveSlot);
+        return _saveService.GetSavePath(DefaultSaveSlot);
     }
 }

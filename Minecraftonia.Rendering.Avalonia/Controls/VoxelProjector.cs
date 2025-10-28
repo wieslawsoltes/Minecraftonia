@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using Avalonia;
-using Minecraftonia.VoxelRendering;
+using Minecraftonia.Rendering.Core;
 
 namespace Minecraftonia.Rendering.Avalonia.Controls;
 

@@ -1,6 +1,6 @@
 using Minecraftonia.Core;
+using Minecraftonia.Rendering.Pipelines;
 using Minecraftonia.VoxelEngine;
-using Minecraftonia.VoxelRendering;
 
 namespace Minecraftonia.Hosting;
 

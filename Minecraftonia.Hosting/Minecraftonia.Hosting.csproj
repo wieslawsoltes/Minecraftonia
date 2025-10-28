@@ -7,9 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Minecraftonia.Rendering.Core\Minecraftonia.Rendering.Core.csproj" />
+    <ProjectReference Include="..\Minecraftonia.Rendering.Pipelines\Minecraftonia.Rendering.Pipelines.csproj" />
     <ProjectReference Include="..\Minecraftonia.Core\Minecraftonia.Core.csproj" />
     <ProjectReference Include="..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
-    <ProjectReference Include="..\Minecraftonia.VoxelRendering\Minecraftonia.VoxelRendering.csproj" />
   </ItemGroup>
 
 </Project>

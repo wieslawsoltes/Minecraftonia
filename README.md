@@ -42,6 +42,26 @@ dotnet run --project samples/Minecraftonia.Sample.BasicBlock
 
 The window now hosts `SampleGameControl`, which composes `Minecraftonia.Hosting` and `.Hosting.Avalonia` to reuse the same render/input loop as the main game. Click or press `Tab` to capture the pointer, then fly around the sample block column with `WASD`, `Space`, and `Shift`.
 
+### CLI Doom sample
+
+Render a classic-inspired hanger to a Portable Pixmap image using only the shared rendering pipelines:
+
+```bash
+dotnet run --project samples/Minecraftonia.Sample.Doom
+```
+
+This produces `doom-frame.ppm` in the working directory. Open the file with any PPM-compatible image viewer to inspect the voxel scene.
+
+### Avalonia Doom demo
+
+Launch an interactive Avalonia window orbiting the same voxel hall with mouse-look controls:
+
+```bash
+dotnet run --project samples/Minecraftonia.Sample.Doom.Avalonia
+```
+
+Use `Tab`/click to capture the mouse, move with the mouse, and press `Esc` to release the pointer.
+
 ## Build & Publish
 
 ### Repository Modules
@@ -51,12 +71,14 @@ The window now hosts `SampleGameControl`, which composes `Minecraftonia.Hosting`
 | `Minecraftonia.Core` | Shared primitives (`BlockType`, world configuration, math helpers). |
 | `Minecraftonia.Content` | Reusable content assets such as procedural block textures. |
 | `Minecraftonia.VoxelEngine` | Voxel storage, chunk management, and player physics. |
-| `Minecraftonia.VoxelRendering` | UI-agnostic CPU ray tracer and material interfaces. |
+| `Minecraftonia.Rendering.Pipelines` | UI-agnostic CPU renderer, ray tracing pipeline, and material interfaces. |
 | `Minecraftonia.Rendering.Avalonia` | Avalonia-specific presenters, cursor helpers, and `VoxelRenderControl<T>`. |
 | `Minecraftonia.Hosting` | Framework-neutral game loop primitives (`GameHost`, `IGameSession<T>`, `IRenderPipeline<T>`). |
 | `Minecraftonia.Hosting.Avalonia` | Avalonia keyboard/pointer capture sources and cursor helpers for hosted sessions. |
 | `Minecraftonia.Game` | Desktop game orchestration (menus, saves, world generation). |
 | `samples/Minecraftonia.Sample.BasicBlock` | Hosting-powered sample app built on `SampleGameControl` to demonstrate shared renderer/input. |
+| `samples/Minecraftonia.Sample.Doom` | Headless CLI demo that renders a Doom-inspired voxel hall to a PPM image using the shared pipelines. |
+| `samples/Minecraftonia.Sample.Doom.Avalonia` | Interactive Avalonia window reusing the Doom voxel world with mouse-look controls. |
 
 Quick smoke-test steps for the main game and the sample app are listed in [`docs/smoke-tests.md`](docs/smoke-tests.md).
 
@@ -142,7 +164,7 @@ Minecraftonia.sln
 ├── Minecraftonia/             # Avalonia desktop front-end
 ├── Minecraftonia.Game/        # Game orchestration, rendering bridge, save system
 ├── Minecraftonia.VoxelEngine/ # Core voxel world data structures & physics
-├── Minecraftonia.VoxelRendering/ # Ray tracer, texture atlas, overlay helpers
+├── Minecraftonia.Rendering.Pipelines/ # CPU ray tracer, GI/FXAA helpers, renderer interfaces
 └── publish/                   # Optional self-contained publish output
 ```
 
@@ -168,7 +190,7 @@ Minecraftonia.sln
 - **Occupancy tracking** – Chunks count solid blocks when hydrated or mutated, providing hooks for future culling/streaming heuristics.
 - **Player physics** – Movement solves planar wish directions, gravity, sprint, and jump. `MoveWithCollisions` performs axis-separated sweeps with step-up logic, delivering responsive first-person motion.
 
-### `Minecraftonia.VoxelRendering`
+### `Minecraftonia.Rendering.Pipelines`
 
 - **Adaptive ray marcher** – `VoxelRayTracer` casts one centre ray per pixel, then conditionally adds stratified jitter samples when colour/alpha variance signals edge detail. DDA traversal caches chunk/local coordinates and runs per-scanline in parallel.
 - **SIMD colour pipeline & FXAA** – All colour blending, luma evaluation, and sharpening use `Vector4` maths, letting .NET emit SSE/AVX instructions. The FXAA/sharpen pass copies the render buffer once and processes rows in parallel, preserving alpha while smoothing edges without supersampling cost.

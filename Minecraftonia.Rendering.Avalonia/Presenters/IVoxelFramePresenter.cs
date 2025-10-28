@@ -1,7 +1,7 @@
 using System;
 using Avalonia;
 using Avalonia.Media;
-using Minecraftonia.VoxelRendering;
+using Minecraftonia.Rendering.Core;
 
 namespace Minecraftonia.Rendering.Avalonia.Presenters;
 

@@ -4,7 +4,7 @@ using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
-using Minecraftonia.VoxelRendering;
+using Minecraftonia.Rendering.Core;
 using SkiaSharp;
 
 namespace Minecraftonia.Rendering.Avalonia.Presenters;
@@ -18,11 +18,6 @@ public sealed class SkiaTextureFramePresenter : IVoxelFramePresenter
 
     public void Render(DrawingContext context, IVoxelFrameBuffer framebuffer, Rect destination)
     {
-        if (framebuffer is null || framebuffer.IsDisposed)
-        {
-            return;
-        }
-
         if (destination.Width <= 0 || destination.Height <= 0)
         {
             return;

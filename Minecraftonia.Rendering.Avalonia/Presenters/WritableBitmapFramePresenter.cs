@@ -4,7 +4,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using Minecraftonia.VoxelRendering;
+using Minecraftonia.Rendering.Core;
 
 namespace Minecraftonia.Rendering.Avalonia.Presenters;
 
@@ -15,11 +15,6 @@ public sealed class WritableBitmapFramePresenter : IVoxelFramePresenter
 
     public void Render(DrawingContext context, IVoxelFrameBuffer framebuffer, Rect destination)
     {
-        if (framebuffer is null || framebuffer.IsDisposed)
-        {
-            return;
-        }
-
         if (destination.Width <= 0 || destination.Height <= 0)
         {
             return;

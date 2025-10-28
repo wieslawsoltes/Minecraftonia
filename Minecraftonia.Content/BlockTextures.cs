@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Minecraftonia.Core;
+using Minecraftonia.Rendering.Core;
+using Minecraftonia.Rendering.Pipelines;
 using Minecraftonia.VoxelEngine;
-using Minecraftonia.VoxelRendering;
 
 namespace Minecraftonia.Content;
 

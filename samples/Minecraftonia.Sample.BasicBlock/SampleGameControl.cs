@@ -12,9 +12,11 @@ using Minecraftonia.Core;
 using Minecraftonia.Hosting;
 using Minecraftonia.Hosting.Avalonia;
 using Minecraftonia.Rendering.Avalonia.Controls;
+using Minecraftonia.Rendering.Avalonia;
 using Minecraftonia.Rendering.Avalonia.Presenters;
+using Minecraftonia.Rendering.Core;
+using Minecraftonia.Rendering.Pipelines;
 using Minecraftonia.VoxelEngine;
-using Minecraftonia.VoxelRendering;
 
 namespace Minecraftonia.Sample.BasicBlock;
 
@@ -27,14 +29,16 @@ internal sealed class SampleGameControl : Control
     private bool _frameScheduled;
     private TimeSpan _lastTimestamp;
 
-    private readonly BlockTextures _materials = new();
+    private BlockTextures _materials = null!;
     private readonly SampleWorld _world = new();
     private readonly Player _player;
-    private readonly IVoxelRenderer<BlockType> _renderer;
-    private readonly SampleRenderPipeline _pipeline;
-    private readonly SampleGameSession _session;
-    private readonly GameHost<BlockType> _host;
-    private readonly IVoxelFramePresenter _framePresenter = new WritableBitmapFramePresenter();
+    private IVoxelRendererFactory<BlockType> _rendererFactory = null!;
+    private IVoxelFramePresenterFactory _framePresenterFactory = null!;
+    private IVoxelRenderer<BlockType> _renderer = null!;
+    private SampleRenderPipeline _pipeline = null!;
+    private SampleGameSession _session = null!;
+    private GameHost<BlockType> _host = null!;
+    private IVoxelFramePresenter _framePresenter = null!;
 
     private TopLevel? _topLevel;
     private KeyboardInputSource? _keyboard;
@@ -45,7 +49,7 @@ internal sealed class SampleGameControl : Control
     private IVoxelFrameBuffer? _framebuffer;
     private VoxelCamera _camera;
 
-    public SampleGameControl()
+    public SampleGameControl(RenderingConfiguration<BlockType> renderingConfig)
     {
         Focusable = true;
         ClipToBounds = true;
@@ -60,15 +64,19 @@ internal sealed class SampleGameControl : Control
 
         _world.EnsureChunksInRange(new ChunkCoordinate(0, 0, 0), radius: 0);
 
-        _renderer = new VoxelRayTracer<BlockType>(
+        _rendererFactory = renderingConfig.RendererFactory;
+        _framePresenterFactory = renderingConfig.PresenterFactory;
+        _materials = (BlockTextures)renderingConfig.Materials;
+
+        var rendererOptions = new VoxelRendererOptions<BlockType>(
             new VoxelSize(256, 144),
             70f,
             block => block.IsSolid(),
             block => block == BlockType.Air,
-            samplesPerPixel: 1,
-            enableFxaa: true,
-            enableSharpen: true,
-            globalIllumination: GlobalIlluminationSettings.Default with { Enabled = false });
+            GlobalIllumination: GlobalIlluminationSettings.Default with { Enabled = false });
+
+        _renderer = _rendererFactory.Create(rendererOptions);
+        _framePresenter = _framePresenterFactory.Create(FramePresentationMode.WritableBitmap);
 
         _session = new SampleGameSession(_world, _materials, _player, HorizontalSpeed, VerticalSpeed);
         _pipeline = new SampleRenderPipeline(_renderer, _materials);

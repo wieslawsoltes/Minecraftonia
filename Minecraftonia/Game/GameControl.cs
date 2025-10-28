@@ -15,9 +15,10 @@ using Minecraftonia.Hosting;
 using Minecraftonia.Hosting.Avalonia;
 using Minecraftonia.Rendering.Avalonia.Controls;
 using Minecraftonia.Rendering.Avalonia.Presenters;
+using Minecraftonia.Rendering.Core;
+using Minecraftonia.Rendering.Pipelines;
 using Minecraftonia.WaveFunctionCollapse;
 using Minecraftonia.VoxelEngine;
-using Minecraftonia.VoxelRendering;
 
 namespace Minecraftonia.Game;
 
@@ -31,12 +32,12 @@ public sealed class GameControl : Control
     private bool _breakQueued;
     private bool _placeQueued;
 
-    private MinecraftoniaGame _game;
-    private readonly BlockTextures _textures;
-    private readonly MinecraftoniaWorldConfig _worldConfig;
-    private readonly int _defaultStreamingRadius;
-    private IGameRenderer _gameRenderer;
-    private readonly bool _ownsRenderer;
+    private MinecraftoniaGame _game = null!;
+    private BlockTextures _textures = null!;
+    private MinecraftoniaWorldConfig _worldConfig = null!;
+    private int _defaultStreamingRadius;
+    private IVoxelRendererFactory<BlockType> _rendererFactory = null!;
+    private IGameRenderer _gameRenderer = null!;
 
     private GameHost<BlockType>? _host;
     private MinecraftoniaGameSession? _session;
@@ -44,9 +45,11 @@ public sealed class GameControl : Control
 
     private IVoxelFrameBuffer? _framebuffer;
     private IVoxelFramePresenter _framePresenter = null!;
-    private readonly Func<FramePresentationMode, IVoxelFramePresenter> _framePresenterFactory;
+    private IVoxelFramePresenterFactory _framePresenterFactory = null!;
     private FramePresentationMode _presentationMode = FramePresentationMode.SkiaTexture;
-    private readonly VoxelSize _renderSize = new VoxelSize(360, 202);
+    private VoxelSize _renderSize;
+    private GameInputConfiguration _inputConfiguration = null!;
+    private GameControlConfiguration _configuration = null!;
 
     private VoxelCamera _camera;
     private bool _hasCamera;
@@ -56,8 +59,8 @@ public sealed class GameControl : Control
     private readonly Typeface _hudTypeface = Typeface.Default;
     private float _smoothedFps = 60f;
 
-    private KeyboardInputSource? _keyboard;
-    private PointerInputSource? _pointer;
+    private IKeyboardInputSource? _keyboard;
+    private IPointerInputSource? _pointer;
     private bool _mouseLookEnabled;
     private Cursor? _previousCursor;
     private float _mouseSensitivity = 0.32f;
@@ -78,44 +81,62 @@ public sealed class GameControl : Control
     public bool IsGameActive => _isGameActive;
 
     public GameControl()
-        : this(null, null, null, null)
+        : this(GameControlConfiguration.CreateDefault())
     {
     }
 
-    public GameControl(
-        IGameRenderer? gameRenderer = null,
-        Func<FramePresentationMode, IVoxelFramePresenter>? framePresenterFactory = null,
-        BlockTextures? textures = null,
-        MinecraftoniaWorldConfig? worldConfig = null)
+    public GameControl(GameControlConfiguration configuration)
     {
         Focusable = true;
         ClipToBounds = true;
+        Configure(configuration);
+    }
 
-        _textures = textures ?? new BlockTextures();
-        _worldConfig = worldConfig ?? MinecraftoniaWorldConfig.FromDimensions(
-            96,
-            48,
-            96,
-            waterLevel: 8,
-            seed: 1337);
+    public void Configure(GameControlConfiguration configuration)
+    {
+        if (configuration is null)
+        {
+            throw new ArgumentNullException(nameof(configuration));
+        }
+
+        if (configuration.Rendering.Materials is not BlockTextures textures)
+        {
+            throw new InvalidOperationException("Rendering configuration must provide BlockTextures for materials.");
+        }
+
+        DisposeInputSources();
+
+        _configuration = configuration;
+        _rendererFactory = configuration.Rendering.RendererFactory ?? throw new InvalidOperationException("Renderer factory is required.");
+        _framePresenterFactory = configuration.Rendering.PresenterFactory ?? throw new InvalidOperationException("Presenter factory is required.");
+        _inputConfiguration = configuration.Input ?? throw new InvalidOperationException("Input configuration is required.");
+        _textures = configuration.Textures ?? textures;
+        _worldConfig = configuration.WorldConfig ?? throw new ArgumentNullException(nameof(configuration.WorldConfig));
+        _renderSize = configuration.RenderSize;
+        _presentationMode = configuration.InitialPresentationMode;
+        _giSettings = configuration.GlobalIllumination;
+
         _defaultStreamingRadius = CalculateStreamingRadius(_worldConfig);
         _game = new MinecraftoniaGame(_worldConfig, textures: _textures, chunkStreamingRadius: _defaultStreamingRadius);
-        _giSettings = GlobalIlluminationSettings.Default with
-        {
-            DiffuseSampleCount = 5,
-            MaxDistance = 22f,
-            Strength = 1.05f,
-            AmbientLight = new Vector3(0.18f, 0.21f, 0.26f),
-            SunShadowSoftness = 0.58f,
-            Enabled = false
-        };
 
-        _ownsRenderer = gameRenderer is null;
-        _gameRenderer = gameRenderer ?? new DefaultGameRenderer(CreateVoxelRenderer(_giSettings), _textures);
-        _framePresenterFactory = framePresenterFactory ?? CreateFramePresenter;
-        _framePresenter = _framePresenterFactory(_presentationMode);
+        _framebuffer?.Dispose();
+        _framebuffer = null;
+        _camera = default;
+        _hasCamera = false;
 
+        _framePresenter?.Dispose();
+        _framePresenter = _framePresenterFactory.Create(_presentationMode);
+
+        RefreshRenderer();
+
+        InitializeInputSources();
+
+        _session = null;
+        _pipeline = null;
+        _host = null;
         ConfigureHosting();
+
+        InvalidateVisual();
     }
 
     public FramePresentationMode PresentationMode
@@ -129,7 +150,7 @@ public sealed class GameControl : Control
             }
 
             _presentationMode = value;
-            ReplaceFramePresenter(CreateFramePresenter(value));
+            ReplaceFramePresenter(_framePresenterFactory.Create(value));
             InvalidateVisual();
         }
     }
@@ -152,18 +173,27 @@ public sealed class GameControl : Control
 
     private IVoxelRenderer<BlockType> CreateVoxelRenderer(GlobalIlluminationSettings giSettings)
     {
-        return new VoxelRayTracer<BlockType>(
-            _renderSize,
-            FieldOfViewDegrees,
-            block => block.IsSolid(),
-            block => block == BlockType.Air,
-            samplesPerPixel: 1,
-            enableFxaa: true,
-            fxaaContrastThreshold: 0.0312f,
-            fxaaRelativeThreshold: 0.125f,
-            enableSharpen: true,
-            sharpenAmount: 0.18f,
-            globalIllumination: giSettings);
+        var options = CreateRendererOptions(giSettings);
+        return _rendererFactory.Create(options);
+    }
+
+    private VoxelRendererOptions<BlockType> CreateRendererOptions(GlobalIlluminationSettings giSettings)
+    {
+        return new VoxelRendererOptions<BlockType>(
+            RenderSize: _renderSize,
+            FieldOfViewDegrees: FieldOfViewDegrees,
+            IsSolid: block => block.IsSolid(),
+            IsEmpty: block => block == BlockType.Air,
+            SamplesPerPixel: 1,
+            EnableFxaa: true,
+            FxaaContrastThreshold: 0.0312f,
+            FxaaRelativeThreshold: 0.125f,
+            EnableSharpen: true,
+            SharpenAmount: 0.18f,
+            FogStart: 45f,
+            FogEnd: 90f,
+            FogColor: null,
+            GlobalIllumination: giSettings);
     }
 
     private static int CalculateStreamingRadius(MinecraftoniaWorldConfig config)
@@ -182,17 +212,7 @@ public sealed class GameControl : Control
 
         if (_topLevel is not null)
         {
-            _keyboard = new KeyboardInputSource(_topLevel);
-            _pointer = new PointerInputSource(_topLevel, this);
-
-            if (_mouseLookEnabled)
-            {
-                _pointer.EnableMouseLook();
-                _pointer.QueueWarpToCenter();
-                _previousCursor ??= _topLevel.Cursor;
-                _topLevel.Cursor = new Cursor(StandardCursorType.None);
-                Focus();
-            }
+            InitializeInputSources();
         }
 
         if (_isGameActive && !_mouseLookEnabled)
@@ -214,17 +234,14 @@ public sealed class GameControl : Control
             SetMouseLook(false);
         }
 
-        _pointer?.Dispose();
-        _pointer = null;
-        _keyboard?.Dispose();
-        _keyboard = null;
+        DisposeInputSources();
         _topLevel = null;
 
         var framebuffer = _framebuffer;
         _framebuffer = null;
         framebuffer?.Dispose();
 
-        ReplaceFramePresenter(_framePresenterFactory(_presentationMode));
+        ReplaceFramePresenter(_framePresenterFactory.Create(_presentationMode));
     }
 
     private void OnAnimationFrame(TimeSpan timestamp)
@@ -653,11 +670,6 @@ public sealed class GameControl : Control
 
     private void RefreshRenderer()
     {
-        if (!_ownsRenderer)
-        {
-            return;
-        }
-
         _gameRenderer = new DefaultGameRenderer(CreateVoxelRenderer(_giSettings), _textures);
     }
 
@@ -687,6 +699,36 @@ public sealed class GameControl : Control
             FramePresentationMode.WritableBitmap => FramePresentationMode.SkiaTexture,
             _ => FramePresentationMode.SkiaTexture
         };
+    }
+
+    private void InitializeInputSources()
+    {
+        DisposeInputSources();
+
+        if (_topLevel is null)
+        {
+            return;
+        }
+
+        _keyboard = _inputConfiguration.CreateKeyboard?.Invoke(_topLevel);
+        _pointer = _inputConfiguration.CreatePointer?.Invoke(_topLevel, this);
+
+        if (_mouseLookEnabled && _pointer is not null)
+        {
+            _pointer.EnableMouseLook();
+            _pointer.QueueWarpToCenter();
+            _previousCursor ??= _topLevel.Cursor;
+            _topLevel.Cursor = new Cursor(StandardCursorType.None);
+            Focus();
+        }
+    }
+
+    private void DisposeInputSources()
+    {
+        _pointer?.Dispose();
+        _pointer = null;
+        _keyboard?.Dispose();
+        _keyboard = null;
     }
 
     private void RegenerateWorld()
@@ -848,16 +890,6 @@ public sealed class GameControl : Control
         PauseRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private IVoxelFramePresenter CreateFramePresenter(FramePresentationMode mode)
-    {
-        return mode switch
-        {
-            FramePresentationMode.WritableBitmap => new WritableBitmapFramePresenter(),
-            FramePresentationMode.SkiaTexture => new SkiaTextureFramePresenter(),
-            _ => new SkiaTextureFramePresenter()
-        };
-    }
-
     private void ReplaceFramePresenter(IVoxelFramePresenter presenter)
     {
         _framePresenter?.Dispose();
@@ -927,10 +959,4 @@ public sealed class GameControl : Control
             return new VoxelRenderResult<BlockType>(result.Framebuffer, result.Camera);
         }
     }
-}
-
-public enum FramePresentationMode
-{
-    WritableBitmap,
-    SkiaTexture
 }
