@@ -8,64 +8,64 @@
 ## Current Hotspots
 - `Minecraftonia.Rendering.Pipelines` now hosts `VoxelRayTracer<TBlock>`, GI tooling, FXAA helpers, and the reusable `VoxelRaycaster`, replacing the legacy `Minecraftonia.VoxelRendering` assembly.
 - `Minecraftonia.Rendering.Avalonia` provides `WritableBitmapFramePresenter` and `SkiaTextureFramePresenter` that expose Avalonia-specific frame presentation but sit directly on top of `IVoxelFrameBuffer`.
-- `Minecraftonia.Game/GameControl.cs` wires together input, hosting, renderer selection, and presentation, making it hard to reuse rendering without the rest of the game shell.
+- `src/Minecraftonia.Game/GameControl.cs` wires together input, hosting, renderer selection, and presentation, making it hard to reuse rendering without the rest of the game shell.
 - `Minecraftonia.Hosting.Avalonia` and `samples/Minecraftonia.Sample.BasicBlock` reimplement similar frame-buffer handling and presenter wiring logic.
 
 ## Pixel/Voxel Presentation Inventory
 - **Controls & Hosts**
-  - `Minecraftonia.Rendering.Avalonia/Controls/VoxelRenderControl.cs` – Avalonia control that queues renderer execution on the UI thread, manages `IVoxelFramePresenter`, and invalidates visuals when the CPU framebuffer updates.
-  - `Minecraftonia/Game/GameControl.cs` – Game-specific control that now consumes `GameControlConfiguration` (`GameControl.Configure`) to obtain renderer/presenter factories before wiring `GameHost`, animation, and pause lifecycle hooks.
+  - `src/Minecraftonia.Rendering.Avalonia/Controls/VoxelRenderControl.cs` – Avalonia control that queues renderer execution on the UI thread, manages `IVoxelFramePresenter`, and invalidates visuals when the CPU framebuffer updates.
+  - `src/Minecraftonia.Game/GameControl.cs` – Game-specific control that now consumes `GameControlConfiguration` (`GameControl.Configure`) to obtain renderer/presenter factories before wiring `GameHost`, animation, and pause lifecycle hooks.
   - `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs` – Minimal hosting control mirroring `GameControl` concepts using `RenderingConfigurationFactory` for renderer/presenter composition.
   - `samples/Minecraftonia.Sample.Doom/Program.cs` – CLI renderer that builds a static voxel world and writes a PPM frame, exercising the shared pipelines without Avalonia.
   - `samples/Minecraftonia.Sample.Doom.Avalonia/DoomGameControl.cs` – Interactive Avalonia host that uses the shared rendering/input configuration to explore the Doom-inspired voxel hall with mouse look.
-  - `Minecraftonia/Game/GameControlConfiguration.cs` & `Minecraftonia.Sample.BasicBlock/RenderingConfigurationFactory.cs` – Composition roots that bundle factories, materials, and world config for reuse.
-  - `Minecraftonia.Hosting/GameHost.cs` – Simulation/render orchestrator that stores the reusable `IVoxelFrameBuffer` returned by the render pipeline.
+  - `src/Minecraftonia.Game/GameControlConfiguration.cs` & `Minecraftonia.Sample.BasicBlock/RenderingConfigurationFactory.cs` – Composition roots that bundle factories, materials, and world config for reuse.
+  - `src/Minecraftonia.Hosting/GameHost.cs` – Simulation/render orchestrator that stores the reusable `IVoxelFrameBuffer` returned by the render pipeline.
 - **Presenters & UI Bridges**
-  - `Minecraftonia.Rendering.Avalonia/RenderingConfiguration.cs` – Bundles presenter and renderer factory references alongside materials for DI consumers.
-  - `Minecraftonia.Rendering.Core/IVoxelFramePresenter.cs` – Abstraction for presenting CPU-generated pixel buffers shared across UI bridges.
-  - `Minecraftonia.Rendering.Avalonia/Presenters/WritableBitmapFramePresenter.cs` – Copies BGRA8888 pixels into an Avalonia `WriteableBitmap` and draws it to the control surface.
-  - `Minecraftonia.Rendering.Avalonia/Presenters/SkiaTextureFramePresenter.cs` – Uploads pixels into an Skia `SKSurface` for GPU-backed presentation, including a custom draw operation.
-  - `Minecraftonia.Rendering.Avalonia/Presenters/IVoxelFramePresenterFactory.cs` & `DefaultVoxelFramePresenterFactory.cs` – Provide factory indirection so hosts can request presenters without referencing concrete Avalonia types.
-  - `Minecraftonia.Game/GameControl.cs` – Requests presenters per `FramePresentationMode` through the factory, disposing the old presenter on swap.
+  - `src/Minecraftonia.Rendering.Avalonia/RenderingConfiguration.cs` – Bundles presenter and renderer factory references alongside materials for DI consumers.
+  - `src/Minecraftonia.Rendering.Core/IVoxelFramePresenter.cs` – Abstraction for presenting CPU-generated pixel buffers shared across UI bridges.
+  - `src/Minecraftonia.Rendering.Avalonia/Presenters/WritableBitmapFramePresenter.cs` – Copies BGRA8888 pixels into an Avalonia `WriteableBitmap` and draws it to the control surface.
+  - `src/Minecraftonia.Rendering.Avalonia/Presenters/SkiaTextureFramePresenter.cs` – Uploads pixels into an Skia `SKSurface` for GPU-backed presentation, including a custom draw operation.
+  - `src/Minecraftonia.Rendering.Avalonia/Presenters/IVoxelFramePresenterFactory.cs` & `DefaultVoxelFramePresenterFactory.cs` – Provide factory indirection so hosts can request presenters without referencing concrete Avalonia types.
+  - `src/Minecraftonia.Game/GameControl.cs` – Requests presenters per `FramePresentationMode` through the factory, disposing the old presenter on swap.
 - **CPU Rendering & Pipelines**
-  - `Minecraftonia.Rendering.Pipelines/VoxelRayTracer.cs` – CPU ray-marched renderer generating `VoxelRenderResult<TBlock>` instances.
-  - `Minecraftonia.Rendering.Pipelines/IVoxelRenderer.cs` – Renderer abstraction consumed by both game and sample pipelines.
-  - `Minecraftonia.Rendering.Pipelines/IVoxelRendererFactory.cs` & `VoxelRayTracerFactory.cs` – Facade factories that construct renderers from neutral options so hosting layers never depend on implementation details.
-  - `Minecraftonia.Game/Rendering/DefaultGameRenderer.cs` – Wraps an `IVoxelRenderer<BlockType>` and returns `GameRenderResult`.
-  - `Minecraftonia.Game/Rendering/GameRenderResult.cs` – Carries `IVoxelFrameBuffer` and `VoxelCamera` for the game-specific pipeline.
-  - `Minecraftonia.Game/GameControl.cs` (nested `GameRenderPipeline`) – Adapts `IGameSession<BlockType>` to `IRenderPipeline<BlockType>`.
+  - `src/Minecraftonia.Rendering.Pipelines/VoxelRayTracer.cs` – CPU ray-marched renderer generating `VoxelRenderResult<TBlock>` instances.
+  - `src/Minecraftonia.Rendering.Pipelines/IVoxelRenderer.cs` – Renderer abstraction consumed by both game and sample pipelines.
+  - `src/Minecraftonia.Rendering.Pipelines/IVoxelRendererFactory.cs` & `VoxelRayTracerFactory.cs` – Facade factories that construct renderers from neutral options so hosting layers never depend on implementation details.
+  - `src/Minecraftonia.Game/Rendering/DefaultGameRenderer.cs` – Wraps an `IVoxelRenderer<BlockType>` and returns `GameRenderResult`.
+  - `src/Minecraftonia.Game/Rendering/GameRenderResult.cs` – Carries `IVoxelFrameBuffer` and `VoxelCamera` for the game-specific pipeline.
+  - `src/Minecraftonia.Game/GameControl.cs` (nested `GameRenderPipeline`) – Adapts `IGameSession<BlockType>` to `IRenderPipeline<BlockType>`.
   - `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs` (nested `SampleRenderPipeline`) – Sample-specific pipeline combining the ray tracer and writable-bitmap presenter.
 - **Frame Buffers & Pixel Data**
-  - `Minecraftonia.Rendering.Core/IVoxelFrameBuffer.cs` and `VoxelFrameBuffer.cs` – Allocate and resize BGRA8888 buffers, expose span accessors, guard against use-after-dispose.
-  - `Minecraftonia.Rendering.Pipelines/VoxelRenderResult.cs` – Couples framebuffer and `VoxelCamera`.
-  - `Minecraftonia.Hosting/GameHost.cs` – Persists the reusable framebuffer across render steps.
-  - `Minecraftonia.Rendering.Avalonia/Controls/VoxelRenderControl.cs` – Holds onto the latest framebuffer to paint during `Render`.
+  - `src/Minecraftonia.Rendering.Core/IVoxelFrameBuffer.cs` and `VoxelFrameBuffer.cs` – Allocate and resize BGRA8888 buffers, expose span accessors, guard against use-after-dispose.
+  - `src/Minecraftonia.Rendering.Pipelines/VoxelRenderResult.cs` – Couples framebuffer and `VoxelCamera`.
+  - `src/Minecraftonia.Hosting/GameHost.cs` – Persists the reusable framebuffer across render steps.
+  - `src/Minecraftonia.Rendering.Avalonia/Controls/VoxelRenderControl.cs` – Holds onto the latest framebuffer to paint during `Render`.
 - **Lighting & Global Illumination**
-  - `Minecraftonia.Rendering.Core/VoxelLightingMath.cs` – Computes per-face normals, UVs, and light falloff.
-  - `Minecraftonia.Rendering.Pipelines/GlobalIlluminationEngine.cs` – Performs secondary bounce sampling, sun shadowing, and ambient occlusion.
-  - `Minecraftonia.Rendering.Pipelines/GlobalIlluminationSamples.cs` – Stratified hemisphere sample patterns used by GI routines.
-  - `Minecraftonia.Rendering.Pipelines/RenderSamplePattern.cs` & `FxaaSharpenFilter.cs` – Provide reusable sampling and FXAA/sharpen tooling invoked by CPU renderers.
-  - `Minecraftonia.Rendering.Pipelines/VoxelRayTracer.cs` – Integrates GI calculations and post-processing while deferring shared math to the pipelines project.
+  - `src/Minecraftonia.Rendering.Core/VoxelLightingMath.cs` – Computes per-face normals, UVs, and light falloff.
+  - `src/Minecraftonia.Rendering.Pipelines/GlobalIlluminationEngine.cs` – Performs secondary bounce sampling, sun shadowing, and ambient occlusion.
+  - `src/Minecraftonia.Rendering.Pipelines/GlobalIlluminationSamples.cs` – Stratified hemisphere sample patterns used by GI routines.
+  - `src/Minecraftonia.Rendering.Pipelines/RenderSamplePattern.cs` & `FxaaSharpenFilter.cs` – Provide reusable sampling and FXAA/sharpen tooling invoked by CPU renderers.
+  - `src/Minecraftonia.Rendering.Pipelines/VoxelRayTracer.cs` – Integrates GI calculations and post-processing while deferring shared math to the pipelines project.
 
 ## Cross-Project Coupling & Contracts
 - **Frame buffer ownership and reuse**
-  - `Minecraftonia.Rendering.Pipelines/VoxelRayTracer.cs:301` calls `EnsureFramebuffer` to reuse the optional buffer instance, while `Minecraftonia.Hosting/GameHost.cs:32` persists the last `IVoxelFrameBuffer` returned by the pipeline and passes it back on the next step. Any alternative renderer or host must respect this reuse contract to avoid allocations or type mismatches.
-  - `Minecraftonia.Game/GameControl.cs:355` and `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:193` cache the framebuffer from `GameHost.Step`, assuming the object outlives the render pass and will be presented later on the UI thread.
+  - `src/Minecraftonia.Rendering.Pipelines/VoxelRayTracer.cs:301` calls `EnsureFramebuffer` to reuse the optional buffer instance, while `src/Minecraftonia.Hosting/GameHost.cs:32` persists the last `IVoxelFrameBuffer` returned by the pipeline and passes it back on the next step. Any alternative renderer or host must respect this reuse contract to avoid allocations or type mismatches.
+  - `src/Minecraftonia.Game/GameControl.cs:355` and `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:193` cache the framebuffer from `GameHost.Step`, assuming the object outlives the render pass and will be presented later on the UI thread.
 - **Pixel layout assumptions**
-  - `Minecraftonia.Rendering.Core/VoxelFrameBuffer.cs:10` fixes stride to `width * 4`, and `Minecraftonia.Rendering.Pipelines/VoxelRayTracer.cs:506` writes pixels in BGRA order with premultiplied alpha. Both `Minecraftonia.Rendering.Avalonia/Presenters/WritableBitmapFramePresenter.cs:34` and `Minecraftonia.Rendering.Avalonia/Presenters/SkiaTextureFramePresenter.cs:42` rely on that layout by copying into `PixelFormat.Bgra8888`/`SKColorType.Bgra8888` surfaces using the provided stride. Any alternative framebuffer implementation must expose identical layout semantics via `Pixels`, `Span`, and `Stride`.
+  - `src/Minecraftonia.Rendering.Core/VoxelFrameBuffer.cs:10` fixes stride to `width * 4`, and `src/Minecraftonia.Rendering.Pipelines/VoxelRayTracer.cs:506` writes pixels in BGRA order with premultiplied alpha. Both `src/Minecraftonia.Rendering.Avalonia/Presenters/WritableBitmapFramePresenter.cs:34` and `src/Minecraftonia.Rendering.Avalonia/Presenters/SkiaTextureFramePresenter.cs:42` rely on that layout by copying into `PixelFormat.Bgra8888`/`SKColorType.Bgra8888` surfaces using the provided stride. Any alternative framebuffer implementation must expose identical layout semantics via `Pixels`, `Span`, and `Stride`.
 - **Disposal responsibilities**
-  - UI layers own presenter lifetimes: `Minecraftonia.Rendering.Avalonia/Controls/VoxelRenderControl.cs:56` and `Minecraftonia.Game/GameControl.cs:861` dispose the current `IVoxelFramePresenter` when swapping implementations, mirroring the sample control’s cleanup (`samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:116`).
-  - Framebuffers returned from renderers are disposed by their owning controls when detached (`Minecraftonia.Rendering.Avalonia/Controls/VoxelRenderControl.cs:171`, `Minecraftonia.Game/GameControl.cs:223`, sample control at `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:112`), reinforcing that render pipelines must not dispose the buffer themselves.
+  - UI layers own presenter lifetimes: `src/Minecraftonia.Rendering.Avalonia/Controls/VoxelRenderControl.cs:56` and `src/Minecraftonia.Game/GameControl.cs:861` dispose the current `IVoxelFramePresenter` when swapping implementations, mirroring the sample control’s cleanup (`samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:116`).
+  - Framebuffers returned from renderers are disposed by their owning controls when detached (`src/Minecraftonia.Rendering.Avalonia/Controls/VoxelRenderControl.cs:171`, `src/Minecraftonia.Game/GameControl.cs:223`, sample control at `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:112`), reinforcing that render pipelines must not dispose the buffer themselves.
 - **Camera and material coupling**
-  - `Minecraftonia.Game/Rendering/DefaultGameRenderer.cs:25` forwards `VoxelRenderResult.Framebuffer` and `VoxelRenderResult.Camera` directly into `GameRenderResult`, while UI controls store the `VoxelCamera` for HUD/use (`Minecraftonia.Game/GameControl.cs:357`, `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:195`). Renderer outputs therefore need to maintain camera state consistency across projects.
+  - `src/Minecraftonia.Game/Rendering/DefaultGameRenderer.cs:25` forwards `VoxelRenderResult.Framebuffer` and `VoxelRenderResult.Camera` directly into `GameRenderResult`, while UI controls store the `VoxelCamera` for HUD/use (`src/Minecraftonia.Game/GameControl.cs:357`, `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:195`). Renderer outputs therefore need to maintain camera state consistency across projects.
 - **Presenter dependency on concrete buffers**
-  - Avalonia presenters access the raw `byte[]` via `IVoxelFrameBuffer.Pixels` (`Minecraftonia.Rendering.Avalonia/Presenters/WritableBitmapFramePresenter.cs:34`, `Minecraftonia.Rendering.Avalonia/Presenters/SkiaTextureFramePresenter.cs:47`) rather than spans only, binding the abstraction to GC-backed arrays. Any move to native memory or GPU surfaces must preserve this API or introduce adapters.
+  - Avalonia presenters access the raw `byte[]` via `IVoxelFrameBuffer.Pixels` (`src/Minecraftonia.Rendering.Avalonia/Presenters/WritableBitmapFramePresenter.cs:34`, `src/Minecraftonia.Rendering.Avalonia/Presenters/SkiaTextureFramePresenter.cs:47`) rather than spans only, binding the abstraction to GC-backed arrays. Any move to native memory or GPU surfaces must preserve this API or introduce adapters.
 - **Render pipeline interfaces**
-  - `Minecraftonia.Hosting/IRenderPipeline.cs:7` expects implementations to accept an optional framebuffer and return `IVoxelRenderResult<TBlock>`; both `Minecraftonia.Game/GameControl.cs:372` and the sample pipeline delegate to renderer services that honor this contract. Future shared pipelines must keep the optional framebuffer parameter to remain drop-in compatible.
+  - `src/Minecraftonia.Hosting/IRenderPipeline.cs:7` expects implementations to accept an optional framebuffer and return `IVoxelRenderResult<TBlock>`; both `src/Minecraftonia.Game/GameControl.cs:372` and the sample pipeline delegate to renderer services that honor this contract. Future shared pipelines must keep the optional framebuffer parameter to remain drop-in compatible.
 - **Factory indirection**
-  - `Minecraftonia.Game/GameControl.cs:119` and `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:64` now rely on `Minecraftonia.Rendering.Pipelines/IVoxelRendererFactory.cs` and `Minecraftonia.Rendering.Avalonia/Presenters/IVoxelFramePresenterFactory.cs` to acquire renderers/presenters, keeping Avalonia/Skia specifics out of hosting logic.
-  - `Minecraftonia/MainWindow.axaml.cs:32` configures `GameControl` with `GameControlConfiguration.CreateDefault()`, providing a single composition point for renderer and presenter services in the main application.
-  - `Minecraftonia.Game/GameControlConfiguration.cs:23` also wires `GameInputConfiguration` and `IGameSaveService` so hosts provide keyboard/pointer capture and persistence without touching Avalonia-specific types or filesystem details.
+  - `src/Minecraftonia.Game/GameControl.cs:119` and `samples/Minecraftonia.Sample.BasicBlock/SampleGameControl.cs:64` now rely on `src/Minecraftonia.Rendering.Pipelines/IVoxelRendererFactory.cs` and `src/Minecraftonia.Rendering.Avalonia/Presenters/IVoxelFramePresenterFactory.cs` to acquire renderers/presenters, keeping Avalonia/Skia specifics out of hosting logic.
+  - `src/Minecraftonia/MainWindow.axaml.cs:32` configures `GameControl` with `GameControlConfiguration.CreateDefault()`, providing a single composition point for renderer and presenter services in the main application.
+  - `src/Minecraftonia.Game/GameControlConfiguration.cs:23` also wires `GameInputConfiguration` and `IGameSaveService` so hosts provide keyboard/pointer capture and persistence without touching Avalonia-specific types or filesystem details.
 
 ## Dependency Map
 - `Minecraftonia.Rendering.Pipelines` → `Minecraftonia.Rendering.Core`, `Minecraftonia.VoxelEngine` (renderer implementations depend on shared buffers and voxel world abstractions).
@@ -132,7 +132,7 @@
 9. [x] Move `VoxelRayTracer<TBlock>` and associated pipeline structs into the shared pipeline project, refactoring constructor dependencies to rely solely on the new abstractions instead of concrete game types.
 10. [x] Introduce facade interfaces or factory services so hosting layers (`Minecraftonia.Hosting`, `Minecraftonia.Game`) can request renderers and presenters without direct knowledge of Avalonia/Skia implementation details.
 11. [x] Update `Minecraftonia.Rendering.Avalonia` to depend on the shared core for buffer primitives, move `IVoxelFramePresenter` into a reusable abstractions namespace, and strip duplicate buffer safety checks now handled centrally.
-12. [x] Refactor `Minecraftonia.Game/GameControl.cs`, `Minecraftonia.Game.Rendering`, and `Minecraftonia.Hosting.Avalonia` to compose the new shared services through dependency injection or explicit configuration objects.
+12. [x] Refactor `src/Minecraftonia.Game/GameControl.cs`, `Minecraftonia.Game.Rendering`, and `Minecraftonia.Hosting.Avalonia` to compose the new shared services through dependency injection or explicit configuration objects.
 13. [x] Adjust `Minecraftonia.VoxelRendering` (if kept) to either wrap the new pipeline types or slim down to extension helpers, ensuring project references and `csproj` files remain consistent across the solution.
 14. [ ] Build targeted regression and performance tests covering buffer resizing, FXAA/sharpen passes, GI toggles, and multi-sample rendering to guard the extracted libraries against regressions.
 15. [x] Expand the samples folder with at least one non-Avalonia consumer (e.g., a CLI image renderer or different UI stack) to validate that the shared pixel primitives work outside the Avalonia ecosystem.

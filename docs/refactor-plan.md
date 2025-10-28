@@ -2,10 +2,10 @@
 
 ## Key Findings
 
-- `Minecraftonia/Game/GameControl.cs:19` currently owns input, camera, ray tracing, and frame-presenter logic, making it difficult to reuse the renderer without the rest of the game.
-- `Minecraftonia/Game/WritableBitmapFramePresenter.cs:11` and `Minecraftonia/Game/SkiaTextureFramePresenter.cs:11` implement generic bitmap/Skia presentation inside the game project instead of a shared UI bridge.
-- `Minecraftonia.VoxelRendering/VoxelFrameBuffer.cs:6` and related renderer types depend on `Avalonia.PixelSize`, preventing consumption from other UI stacks.
-- `Minecraftonia.Game/MinecraftoniaGame.cs:33` and `Minecraftonia.Game/BlockTextures.cs:10` bundle palette, materials, saves, and world config together; meanwhile `Minecraftonia.WaveFunctionCollapse/BlockType.cs:3` defines `BlockType`, pulling in optional systems for any consumer.
+- `src/Minecraftonia.Game/GameControl.cs:19` currently owns input, camera, ray tracing, and frame-presenter logic, making it difficult to reuse the renderer without the rest of the game.
+- `src/Minecraftonia.Game/WritableBitmapFramePresenter.cs:11` and `src/Minecraftonia.Game/SkiaTextureFramePresenter.cs:11` implement generic bitmap/Skia presentation inside the game project instead of a shared UI bridge.
+- `src/Minecraftonia.Rendering.Core/VoxelFrameBuffer.cs:6` and related renderer types depend on `Avalonia.PixelSize`, preventing consumption from other UI stacks.
+- `src/Minecraftonia.Game/MinecraftoniaGame.cs:33` and `src/Minecraftonia.Game/BlockTextures.cs:10` bundle palette, materials, saves, and world config together; meanwhile `src/Minecraftonia.WaveFunctionCollapse/BlockType.cs:3` defines `BlockType`, pulling in optional systems for any consumer.
 
 ## Target Modularization
 

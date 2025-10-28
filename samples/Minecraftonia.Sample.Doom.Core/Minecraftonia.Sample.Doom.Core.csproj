@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Minecraftonia.Core\Minecraftonia.Core.csproj" />
-    <ProjectReference Include="..\..\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
+    <ProjectReference Include="..\..\src\Minecraftonia.Core\Minecraftonia.Core.csproj" />
+    <ProjectReference Include="..\..\src\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj" />
   </ItemGroup>
 
 </Project>

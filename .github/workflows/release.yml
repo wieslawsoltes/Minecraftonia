@@ -1,20 +1,17 @@
-name: Build and Release
+name: Release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
 
 jobs:
   build:
+    name: Publish ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -28,7 +25,6 @@ jobs:
           - os: windows-latest
             rid: win-x64
             zip_name: Minecraftonia-windows-x64.zip
-    runs-on: ${{ matrix.os }}
     env:
       APP_NAME: Minecraftonia
     steps:
@@ -44,13 +40,13 @@ jobs:
         run: dotnet restore Minecraftonia.sln
 
       - name: Build solution
-        run: dotnet build Minecraftonia.sln
+        run: dotnet build Minecraftonia.sln -c Release --no-restore
 
       - name: Build sample app
-        run: dotnet build samples/Minecraftonia.Sample.BasicBlock/Minecraftonia.Sample.BasicBlock.csproj -c Release
+        run: dotnet build samples/Minecraftonia.Sample.BasicBlock/Minecraftonia.Sample.BasicBlock.csproj -c Release --no-restore
 
       - name: Publish
-        run: dotnet publish Minecraftonia/Minecraftonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish/${{ matrix.rid }}
+        run: dotnet publish src/Minecraftonia/Minecraftonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish/${{ matrix.rid }}
 
       - name: Remove debug artifacts
         shell: bash
@@ -100,38 +96,9 @@ jobs:
           path: publish/${{ matrix.zip_name }}
           if-no-files-found: error
 
-  release:
-    needs:
-      - build
-      - publish-nuget
-    if: startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/**/*.zip
-            dist/**/*.nupkg
-            dist/**/*.snupkg
-          name: Release ${{ github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   publish-nuget:
     name: Publish NuGet Packages
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     env:
       PACK_OUTPUT: artifacts/packages
@@ -152,13 +119,21 @@ jobs:
             echo "Tag '${GITHUB_REF_NAME}' does not contain a semantic version after the leading 'v'." >&2
             exit 1
           fi
-          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          PREFIX="${VERSION%%-*}"
+          if [[ "$VERSION" == *-* ]]; then
+            SUFFIX="${VERSION#*-}"
+          else
+            SUFFIX=""
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prefix=$PREFIX" >> "$GITHUB_OUTPUT"
+          echo "suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
 
       - name: Restore
         run: dotnet restore Minecraftonia.sln
 
       - name: Pack libraries
-        run: dotnet pack Minecraftonia.sln -c Release -p:PackageVersion=${{ steps.package_version.outputs.value }} -p:ContinuousIntegrationBuild=true --output $PACK_OUTPUT
+        run: dotnet pack Minecraftonia.sln -c Release -p:VersionPrefix=${{ steps.package_version.outputs.prefix }} -p:VersionSuffix=${{ steps.package_version.outputs.suffix }} -p:GenerateDefaultVersionSuffix=false -p:ContinuousIntegrationBuild=true --output $PACK_OUTPUT
 
       - name: Ensure NuGet API key
         env:
@@ -198,3 +173,31 @@ jobs:
           name: nuget-packages
           path: ${{ env.PACK_OUTPUT }}
           if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs:
+      - build
+      - publish-nuget
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/**/*.zip
+            dist/**/*.nupkg
+            dist/**/*.snupkg
+          name: Release ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

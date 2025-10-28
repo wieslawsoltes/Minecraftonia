@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-pack:
+    name: Test & Pack
+    runs-on: ubuntu-latest
+    env:
+      PACK_OUTPUT: artifacts/packages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Minecraftonia.sln
+
+      - name: Build
+        run: dotnet build Minecraftonia.sln -c Release --no-restore
+
+      - name: Test
+        shell: bash
+        run: |
+          if dotnet sln Minecraftonia.sln list | grep -qi test; then
+            dotnet test Minecraftonia.sln -c Release --no-build
+          else
+            echo "No test projects found; skipping dotnet test."
+          fi
+
+      - name: Pack libraries
+        run: dotnet pack Minecraftonia.sln -c Release --no-build -p:ContinuousIntegrationBuild=true --output $PACK_OUTPUT
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: ${{ env.PACK_OUTPUT }}
+          if-no-files-found: error
+
+  build:
+    name: Publish ${{ matrix.rid }}
+    needs: test-pack
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            zip_name: Minecraftonia-linux-x64.zip
+          - os: macos-latest
+            rid: osx-arm64
+            zip_name: Minecraftonia-macos-arm64.zip
+          - os: windows-latest
+            rid: win-x64
+            zip_name: Minecraftonia-windows-x64.zip
+    env:
+      APP_NAME: Minecraftonia
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Minecraftonia.sln
+
+      - name: Build solution
+        run: dotnet build Minecraftonia.sln -c Release --no-restore
+
+      - name: Build sample app
+        run: dotnet build samples/Minecraftonia.Sample.BasicBlock/Minecraftonia.Sample.BasicBlock.csproj -c Release --no-restore
+
+      - name: Publish
+        run: dotnet publish src/Minecraftonia/Minecraftonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish/${{ matrix.rid }}
+
+      - name: Remove debug artifacts
+        shell: bash
+        run: |
+          find publish/${{ matrix.rid }} -name '*.dSYM' -prune -exec rm -rf {} +
+          find publish/${{ matrix.rid }} -type f \( -name '*.pdb' -o -name '*.pdf' -o -name '*.dsym' -o -name '*.dbg' \) -delete
+
+      - name: Strip binaries (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          bin_dir="publish/${{ matrix.rid }}"
+          if [ -f "$bin_dir/${{ env.APP_NAME }}" ]; then
+            strip -x "$bin_dir/${{ env.APP_NAME }}"
+          fi
+          while IFS= read -r lib; do
+            strip -x "$lib"
+          done < <(find "$bin_dir" -type f -name '*.dylib')
+
+      - name: Strip binaries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          bin_dir="publish/${{ matrix.rid }}"
+          if [ -f "$bin_dir/${{ env.APP_NAME }}" ]; then
+            strip --strip-unneeded "$bin_dir/${{ env.APP_NAME }}"
+          fi
+          while IFS= read -r lib; do
+            strip --strip-unneeded "$lib"
+          done < <(find "$bin_dir" -type f -name '*.so')
+
+      - name: Archive build
+        if: runner.os != 'Windows'
+        run: |
+          cd publish/${{ matrix.rid }}
+          zip -r ../${{ matrix.zip_name }} .
+
+      - name: Archive build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd publish/${{ matrix.rid }}
+          Compress-Archive -Path * -DestinationPath ../${{ matrix.zip_name }}
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: publish/${{ matrix.zip_name }}
+          if-no-files-found: error

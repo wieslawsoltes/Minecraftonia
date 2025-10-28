@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <VersionPrefix Condition="'$(VersionPrefix)' == ''">0.1.0</VersionPrefix>
+    <GenerateDefaultVersionSuffix Condition="'$(GenerateDefaultVersionSuffix)' == ''">true</GenerateDefaultVersionSuffix>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' and '$(GenerateDefaultVersionSuffix)' == 'true'">local</VersionSuffix>
+  </PropertyGroup>
+</Project>

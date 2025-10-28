@@ -3,33 +3,33 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia", "Minecraftonia\Minecraftonia.csproj", "{495B05BC-24D5-448E-A999-847246D1C8A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia", "src\Minecraftonia\Minecraftonia.csproj", "{495B05BC-24D5-448E-A999-847246D1C8A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Core", "Minecraftonia.Core\Minecraftonia.Core.csproj", "{223568E4-6D8D-4C8D-BBF6-7D5A7350F60E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Core", "src\Minecraftonia.Core\Minecraftonia.Core.csproj", "{223568E4-6D8D-4C8D-BBF6-7D5A7350F60E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Rendering.Avalonia", "Minecraftonia.Rendering.Avalonia\Minecraftonia.Rendering.Avalonia.csproj", "{86C875B6-3284-4E19-BE6B-3215E7C63A89}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Rendering.Avalonia", "src\Minecraftonia.Rendering.Avalonia\Minecraftonia.Rendering.Avalonia.csproj", "{86C875B6-3284-4E19-BE6B-3215E7C63A89}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Content", "Minecraftonia.Content\Minecraftonia.Content.csproj", "{620836B1-EA33-4549-85CD-4D2F04268D37}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Content", "src\Minecraftonia.Content\Minecraftonia.Content.csproj", "{620836B1-EA33-4549-85CD-4D2F04268D37}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Sample.BasicBlock", "samples\Minecraftonia.Sample.BasicBlock\Minecraftonia.Sample.BasicBlock.csproj", "{7C700318-3B12-4E10-B316-8F221AA37C25}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.VoxelEngine", "Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj", "{4FDB9429-F361-4A58-AD68-9211886DCA8A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.VoxelEngine", "src\Minecraftonia.VoxelEngine\Minecraftonia.VoxelEngine.csproj", "{4FDB9429-F361-4A58-AD68-9211886DCA8A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Game", "Minecraftonia.Game\Minecraftonia.Game.csproj", "{11AF49B8-BBD5-48A3-9C82-9F0B8411A812}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Game", "src\Minecraftonia.Game\Minecraftonia.Game.csproj", "{11AF49B8-BBD5-48A3-9C82-9F0B8411A812}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.WaveFunctionCollapse", "Minecraftonia.WaveFunctionCollapse\Minecraftonia.WaveFunctionCollapse.csproj", "{AB190F32-E15B-46AF-8544-E8CDB05D478F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.WaveFunctionCollapse", "src\Minecraftonia.WaveFunctionCollapse\Minecraftonia.WaveFunctionCollapse.csproj", "{AB190F32-E15B-46AF-8544-E8CDB05D478F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.OpenStreetMap", "Minecraftonia.OpenStreetMap\Minecraftonia.OpenStreetMap.csproj", "{A6AA6637-1FE1-4338-89B9-1979BE9DFA07}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.OpenStreetMap", "src\Minecraftonia.OpenStreetMap\Minecraftonia.OpenStreetMap.csproj", "{A6AA6637-1FE1-4338-89B9-1979BE9DFA07}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.MarkovJunior", "Minecraftonia.MarkovJunior\Minecraftonia.MarkovJunior.csproj", "{18BEB101-7546-4B56-8EF5-2F49EBECA5DC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.MarkovJunior", "src\Minecraftonia.MarkovJunior\Minecraftonia.MarkovJunior.csproj", "{18BEB101-7546-4B56-8EF5-2F49EBECA5DC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.MarkovJunior.Architecture", "Minecraftonia.MarkovJunior.Architecture\Minecraftonia.MarkovJunior.Architecture.csproj", "{85564B2A-3E98-41FF-A5B9-66622E3283B9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.MarkovJunior.Architecture", "src\Minecraftonia.MarkovJunior.Architecture\Minecraftonia.MarkovJunior.Architecture.csproj", "{85564B2A-3E98-41FF-A5B9-66622E3283B9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Hosting", "Minecraftonia.Hosting\Minecraftonia.Hosting.csproj", "{6E16E5C0-CE9D-41B4-B51E-F21005F6E53A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Hosting", "src\Minecraftonia.Hosting\Minecraftonia.Hosting.csproj", "{6E16E5C0-CE9D-41B4-B51E-F21005F6E53A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Rendering.Core", "Minecraftonia.Rendering.Core\Minecraftonia.Rendering.Core.csproj", "{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Rendering.Core", "src\Minecraftonia.Rendering.Core\Minecraftonia.Rendering.Core.csproj", "{8F2F5FD8-8BF2-453E-A2B6-D1AC6E468D48}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Rendering.Pipelines", "Minecraftonia.Rendering.Pipelines\Minecraftonia.Rendering.Pipelines.csproj", "{11B563B1-E832-436A-994B-BAA3B3A3E4E6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Minecraftonia.Rendering.Pipelines", "src\Minecraftonia.Rendering.Pipelines\Minecraftonia.Rendering.Pipelines.csproj", "{11B563B1-E832-436A-994B-BAA3B3A3E4E6}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5D20AA90-6969-D8BD-9DCD-8634F4692FDA}"
 EndProject
